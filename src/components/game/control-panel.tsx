@@ -1,34 +1,43 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback, useReducer } from 'react';
+import React, { useState, useEffect, useCallback, useReducer, useMemo } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Progress } from '@/components/ui/progress'; // Import Progress
-import { Package, Rocket, FlaskConical, Users, Sun, Atom, ShieldCheck, Target, Warehouse, Banknote, Library, HeartPulse, Ship, Factory, Mountain, Diamond } from 'lucide-react';
+import { Package, Rocket, FlaskConical, Users, Sun, Atom, ShieldCheck, Target, Warehouse, Banknote, Library, HeartPulse, Ship, Factory, Mountain, Diamond, Zap } from 'lucide-react'; // Added Zap icon
 import { SidebarHeader, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarGroupContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarSeparator, SidebarTrigger } from '@/components/ui/sidebar';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from '@/lib/utils';
 import { useToast } from "@/hooks/use-toast"; // Import useToast
-import type { Building, ShipType, ResearchItem, Resources, OreType, ConstructionProgress } from '@/types/game-types';
+import type { Building, ShipType, ResearchItem, Resources, OreType, ConstructionProgress, BuildingCategory } from '@/types/game-types';
 import { OreType as OreTypeEnum } from '@/types/game-types';
+
+// Define Building Categories
+const buildingCategories: BuildingCategory[] = ['Core', 'Production', 'Power', 'Defense', 'Utility', 'Shipyard'];
 
 // Example Data (replace with actual game state/definitions)
 const availableBuildings: Building[] = [
-  { id: 'colony_hub', name: 'Colony Hub', description: 'Central structure. Upgrading allows more buildings.', cost: { [OreTypeEnum.Iron]: 100 }, icon: Factory, level: 1, constructionTime: 10000 }, // 10 seconds
-  { id: 'ore_refinery', name: 'Ore Refinery', description: 'Extracts ore from the planet.', cost: { [OreTypeEnum.Iron]: 50, [OreTypeEnum.Copper]: 25 }, icon: Package, energyCost: 5, constructionTime: 5000 }, // 5 seconds
-  { id: 'trade_port', name: 'Trade Port', description: 'Allows trade of ore for resources.', cost: { [OreTypeEnum.Iron]: 75, [OreTypeEnum.Gold]: 10 }, icon: Banknote, constructionTime: 8000 },
-  { id: 'research_lab', name: 'Research Lab', description: 'Unlocks tech trees and advanced upgrades.', cost: { [OreTypeEnum.Iron]: 150, [OreTypeEnum.Copper]: 50 }, icon: Library, energyCost: 10, constructionTime: 15000 },
-  { id: 'medical_lab', name: 'Medical Lab', description: 'Improves worker efficiency and reduces downtime.', cost: { [OreTypeEnum.Iron]: 100, [OreTypeEnum.Copper]: 30 }, icon: HeartPulse, energyCost: 8, constructionTime: 12000 },
-  { id: 'colony_expansion', name: 'Colony Expansion', description: 'Increases population cap and worker allocation.', cost: { [OreTypeEnum.Iron]: 200, [OreTypeEnum.Titanium]: 20 }, icon: Users, constructionTime: 20000 },
-  { id: 'ship_facility', name: 'Ship Facility', description: 'Builds and upgrades ships.', cost: { [OreTypeEnum.Iron]: 250, [OreTypeEnum.Titanium]: 50 }, icon: Ship, energyCost: 15, constructionTime: 25000 },
-  { id: 'solar_plant', name: 'Solar Plant', description: 'Low output, cheap, low maintenance.', cost: { [OreTypeEnum.Iron]: 80, [OreTypeEnum.Copper]: 20 }, icon: Sun, energyProduction: 20, constructionTime: 7000 },
-  { id: 'nuclear_reactor', name: 'Nuclear Reactor', description: 'High output, expensive, potential risks.', cost: { [OreTypeEnum.Iron]: 400, [OreTypeEnum.Titanium]: 100, [OreTypeEnum.Uranium]: 10 }, icon: Atom, requires: 'Research: Nuclear Power', energyProduction: 100, constructionTime: 45000 },
-  { id: 'laser_turret', name: 'Laser Turret', description: 'Basic planetary defense.', cost: { [OreTypeEnum.Iron]: 100, [OreTypeEnum.Copper]: 40 }, icon: Target, energyCost: 20, constructionTime: 9000 },
-   { id: 'missile_battery', name: 'Missile Battery', description: 'Long-range planetary defense.', cost: { [OreTypeEnum.Iron]: 180, [OreTypeEnum.Titanium]: 30 }, icon: Target, energyCost: 25, constructionTime: 18000 },
-   { id: 'shield_generator', name: 'Shield Generator', description: 'Protects the colony from orbital bombardment.', cost: { [OreTypeEnum.Iron]: 300, [OreTypeEnum.Gold]: 50, [OreTypeEnum.Titanium]: 75 }, icon: ShieldCheck, energyCost: 50, constructionTime: 30000 },
+  // Core
+  { id: 'colony_hub', name: 'Colony Hub', category: 'Core', description: 'Central structure. Upgrading allows more buildings.', cost: { [OreTypeEnum.Iron]: 100 }, icon: Factory, level: 1, constructionTime: 10000 }, // 10 seconds
+  { id: 'colony_expansion', name: 'Colony Expansion', category: 'Core', description: 'Increases population cap and worker allocation.', cost: { [OreTypeEnum.Iron]: 200, [OreTypeEnum.Titanium]: 20 }, icon: Users, constructionTime: 20000 },
+  // Production
+  { id: 'ore_refinery', name: 'Ore Refinery', category: 'Production', description: 'Extracts ore from the planet.', cost: { [OreTypeEnum.Iron]: 50, [OreTypeEnum.Copper]: 25 }, icon: Package, energyCost: 5, constructionTime: 5000 }, // 5 seconds
+  // Power
+  { id: 'solar_plant', name: 'Solar Plant', category: 'Power', description: 'Low output, cheap, low maintenance.', cost: { [OreTypeEnum.Iron]: 80, [OreTypeEnum.Copper]: 20 }, icon: Sun, energyProduction: 20, constructionTime: 7000 },
+  { id: 'nuclear_reactor', name: 'Nuclear Reactor', category: 'Power', description: 'High output, expensive, potential risks.', cost: { [OreTypeEnum.Iron]: 400, [OreTypeEnum.Titanium]: 100, [OreTypeEnum.Uranium]: 10 }, icon: Atom, requires: 'Research: Nuclear Power', energyProduction: 100, constructionTime: 45000 },
+  // Defense
+  { id: 'laser_turret', name: 'Laser Turret', category: 'Defense', description: 'Basic planetary defense.', cost: { [OreTypeEnum.Iron]: 100, [OreTypeEnum.Copper]: 40 }, icon: Target, energyCost: 20, constructionTime: 9000 },
+   { id: 'missile_battery', name: 'Missile Battery', category: 'Defense', description: 'Long-range planetary defense.', cost: { [OreTypeEnum.Iron]: 180, [OreTypeEnum.Titanium]: 30 }, icon: Target, energyCost: 25, constructionTime: 18000 },
+   { id: 'shield_generator', name: 'Shield Generator', category: 'Defense', description: 'Protects the colony from orbital bombardment.', cost: { [OreTypeEnum.Iron]: 300, [OreTypeEnum.Gold]: 50, [OreTypeEnum.Titanium]: 75 }, icon: ShieldCheck, energyCost: 50, constructionTime: 30000 },
+  // Utility
+  { id: 'trade_port', name: 'Trade Port', category: 'Utility', description: 'Allows trade of ore for resources.', cost: { [OreTypeEnum.Iron]: 75, [OreTypeEnum.Gold]: 10 }, icon: Banknote, constructionTime: 8000 },
+  { id: 'research_lab', name: 'Research Lab', category: 'Utility', description: 'Unlocks tech trees and advanced upgrades.', cost: { [OreTypeEnum.Iron]: 150, [OreTypeEnum.Copper]: 50 }, icon: Library, energyCost: 10, constructionTime: 15000 },
+  { id: 'medical_lab', name: 'Medical Lab', category: 'Utility', description: 'Improves worker efficiency and reduces downtime.', cost: { [OreTypeEnum.Iron]: 100, [OreTypeEnum.Copper]: 30 }, icon: HeartPulse, energyCost: 8, constructionTime: 12000 },
+  // Shipyard (Could also be its own tab, but keeping it simple for now)
+  { id: 'ship_facility', name: 'Ship Facility', category: 'Shipyard', description: 'Builds and upgrades ships.', cost: { [OreTypeEnum.Iron]: 250, [OreTypeEnum.Titanium]: 50 }, icon: Ship, energyCost: 15, constructionTime: 25000 },
 ];
 
 const availableShips: ShipType[] = [
@@ -91,6 +100,23 @@ const ControlPanel: React.FC = () => {
   const [constructing, setConstructing] = useState<Record<string, ConstructionProgress>>({});
   const [constructionProgress, setConstructionProgress] = useState<Record<string, number>>({});
 
+   // Group buildings by category
+   const groupedBuildings = useMemo(() => {
+       const groups: Record<BuildingCategory, Building[]> = {
+           Core: [], Production: [], Power: [], Defense: [], Utility: [], Shipyard: []
+       };
+       availableBuildings.forEach(building => {
+           if (groups[building.category]) {
+               groups[building.category].push(building);
+           } else {
+               console.warn(`Building ${building.name} has unknown category: ${building.category}`);
+               // Optionally add to a default category like 'Utility'
+               groups['Utility'].push(building);
+           }
+       });
+       return groups;
+   }, []); // Depends only on the static availableBuildings definition
+
   // Recalculate energy balance
   useEffect(() => {
     setResources(prev => {
@@ -105,19 +131,28 @@ const ControlPanel: React.FC = () => {
     const interval = setInterval(() => {
       const now = Date.now();
       const newProgress: Record<string, number> = {};
+      let changed = false;
       for (const buildingId in constructing) {
         const progressData = constructing[buildingId];
         if (progressData) {
           const elapsed = now - progressData.startTime;
           const progress = Math.min(100, (elapsed / progressData.duration) * 100);
-          newProgress[buildingId] = progress;
+          if (constructionProgress[buildingId] !== progress) {
+            newProgress[buildingId] = progress;
+            changed = true;
+          } else {
+            newProgress[buildingId] = constructionProgress[buildingId]; // Keep existing progress if no change
+          }
         }
       }
-      setConstructionProgress(newProgress);
+       // Only update state if any progress actually changed
+      if (changed) {
+         setConstructionProgress(newProgress);
+      }
     }, 100); // Update progress every 100ms
 
     return () => clearInterval(interval);
-  }, [constructing]);
+  }, [constructing, constructionProgress]); // Add constructionProgress as dependency
 
   const handleBuild = (building: Building) => {
     if (!hasEnoughResources(building.cost, resources)) {
@@ -148,9 +183,10 @@ const ControlPanel: React.FC = () => {
 
     // Start construction tracking
     const startTime = Date.now();
+    const constructionData = { startTime, duration: building.constructionTime };
     setConstructing(prev => ({
         ...prev,
-        [building.id]: { startTime, duration: building.constructionTime }
+        [building.id]: constructionData
     }));
     setConstructionProgress(prev => ({ ...prev, [building.id]: 0 })); // Initialize progress
 
@@ -159,7 +195,7 @@ const ControlPanel: React.FC = () => {
       description: `Building ${building.name}...`,
     });
 
-    // Simulate construction time
+    // Simulate construction time - using the constructionData from closure
     setTimeout(() => {
       // Construction finished: Update game state (add building, adjust energy, etc.)
       setResources(prev => {
@@ -196,7 +232,7 @@ const ControlPanel: React.FC = () => {
       // Optional: Trigger a re-render if needed, though state updates should handle it
        forceUpdate();
 
-    }, building.constructionTime);
+    }, building.constructionTime); // Use original constructionTime
   };
 
    const handleBuildShip = (ship: ShipType) => {
@@ -227,12 +263,14 @@ const ControlPanel: React.FC = () => {
             });
              const itemIndex = availableResearch.findIndex(item => item.id === research.id);
              if (itemIndex > -1) {
-                 availableResearch[itemIndex].completed = true; // Mutating example data
+                 // This is example data mutation, in real app update state properly
+                 // availableResearch[itemIndex].completed = true;
+                 // Instead, manage completed research in state
              }
              console.log(`Researching ${research.name}... (State updated)`);
              toast({ title: "Research Started", description: `Researching ${research.name}...` });
-             // TODO: Implement research time/queue
-             forceUpdate();
+             // TODO: Implement research time/queue & update state properly
+             forceUpdate(); // Force update for example mutation
             return newResources;
         });
 
@@ -268,8 +306,8 @@ const ControlPanel: React.FC = () => {
                       </div>
                  ))}
                  {resources.Energy && (
-                    <div className="flex justify-between items-center">
-                        <span>Energy:</span>
+                    <div className="flex justify-between items-center pt-1 border-t border-border/50 mt-1">
+                        <span className="flex items-center"><Zap className="w-3 h-3 mr-1 text-yellow-400" />Energy:</span>
                         <span className={cn(resources.Energy.balance >= 0 ? 'text-[hsl(var(--chart-1))]' : 'text-destructive')}>
                            {resources.Energy.balance >= 0 ? `+${resources.Energy.balance}` : resources.Energy.balance} <span className="text-xs text-muted-foreground">({resources.Energy.production}/{resources.Energy.consumption})</span>
                         </span>
@@ -292,75 +330,90 @@ const ControlPanel: React.FC = () => {
 
             <ScrollArea className="flex-1 px-2 pb-2">
                 {/* Buildings Tab */}
-                <TabsContent value="buildings" className="mt-0">
-                <SidebarMenu>
-                    {availableBuildings.map((building) => {
-                        const isConstructing = !!constructing[building.id];
-                        const progress = constructionProgress[building.id] ?? 0;
-                        return (
-                            <SidebarMenuItem key={building.id}>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Card className="w-full bg-card/50 hover:bg-card/70 transition-colors relative overflow-hidden"> {/* Added relative & overflow-hidden */}
-                                            {/* Progress Bar Overlay */}
-                                            {isConstructing && (
-                                                <Progress
-                                                    value={progress}
-                                                    className="absolute top-0 left-0 w-full h-full rounded-none opacity-30 bg-transparent [&>div]:bg-primary" // Style the progress bar
-                                                    aria-label={`Construction progress: ${Math.round(progress)}%`}
-                                                />
-                                            )}
-                                            <CardContent className="p-2 flex items-center justify-between gap-2 relative z-10"> {/* Ensure content is above progress */}
-                                                <div className="flex items-center gap-2 flex-1 min-w-0">
-                                                    <building.icon className="w-5 h-5 text-muted-foreground flex-shrink-0" />
-                                                    <div className="flex-1 min-w-0">
-                                                        <p className="text-sm font-medium truncate">{building.name} {building.level && `(Lvl ${building.level})`}</p>
-                                                        <div className="text-xs text-muted-foreground truncate flex items-center">
-                                                             <span className="mr-1">Cost:</span> {formatCostWithIcons(building.cost)}
-                                                        </div>
-                                                         {building.energyCost || building.energyProduction ? (
-                                                            <p className="text-xs text-muted-foreground truncate">
-                                                                Energy: {building.energyProduction ? `+${building.energyProduction}` : `-${building.energyCost}`}
-                                                            </p>
-                                                         ) : null}
-                                                         {isConstructing && (
-                                                            <p className="text-xs text-primary animate-pulse">Constructing ({Math.round(progress)}%)...</p>
-                                                         )}
-                                                    </div>
-                                                </div>
-                                                <Button
-                                                    size="sm"
-                                                    onClick={() => handleBuild(building)}
-                                                    disabled={!hasEnoughResources(building.cost, resources) || isConstructing}
-                                                >
-                                                    {isConstructing ? "Building" : "Build"}
-                                                </Button>
-                                            </CardContent>
-                                        </Card>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="right" align="start" className="max-w-xs">
-                                         <p className="font-semibold">{building.name} {building.level && `(Lvl ${building.level})`}</p>
-                                         <p className="text-sm text-muted-foreground mb-2">{building.description}</p>
-                                         <div className="text-sm space-y-1">
-                                             <p>Cost: {formatCostWithIcons(building.cost)}</p>
-                                             <p>Build Time: {building.constructionTime / 1000}s</p>
-                                             {building.energyCost && <p>Energy Consumption: {building.energyCost}</p>}
-                                             {building.energyProduction && <p>Energy Production: {building.energyProduction}</p>}
-                                             {building.requires && <p className="text-amber-400">Requires: {building.requires}</p>}
-                                         </div>
-                                          {isConstructing && (
-                                            <div className="mt-2">
-                                                <p className="text-xs text-primary">Construction in progress...</p>
-                                                <Progress value={progress} className="h-1 mt-1" />
-                                            </div>
-                                           )}
-                                    </TooltipContent>
-                                </Tooltip>
-                            </SidebarMenuItem>
-                        );
-                    })}
-                </SidebarMenu>
+                <TabsContent value="buildings" className="mt-0 space-y-4">
+                  {buildingCategories.map(category => (
+                    groupedBuildings[category]?.length > 0 && (
+                      <SidebarGroup key={category} className="space-y-1">
+                        <SidebarGroupLabel className="text-xs font-semibold uppercase text-muted-foreground px-0">{category}</SidebarGroupLabel>
+                        <SidebarGroupContent className="p-0">
+                          <SidebarMenu className="p-0 gap-1">
+                              {groupedBuildings[category].map((building) => {
+                                  const isConstructing = !!constructing[building.id];
+                                  const progress = constructionProgress[building.id] ?? 0;
+                                  const isDisabled = !hasEnoughResources(building.cost, resources) || isConstructing;
+                                  return (
+                                      <SidebarMenuItem key={building.id} className="p-0">
+                                          <Tooltip>
+                                              <TooltipTrigger asChild>
+                                                  <Card className="w-full bg-card/50 hover:bg-card/70 transition-colors relative overflow-hidden"> {/* Added relative & overflow-hidden */}
+                                                      {/* Progress Bar Overlay */}
+                                                      {isConstructing && (
+                                                          <Progress
+                                                              value={progress}
+                                                              className="absolute top-0 left-0 w-full h-full rounded-none opacity-30 bg-transparent [&>div]:bg-primary" // Style the progress bar
+                                                              aria-label={`Construction progress: ${Math.round(progress)}%`}
+                                                          />
+                                                      )}
+                                                      <CardContent className="p-2 flex items-center justify-between gap-2 relative z-10"> {/* Ensure content is above progress */}
+                                                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                              <building.icon className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                                                              <div className="flex-1 min-w-0">
+                                                                  <p className="text-sm font-medium truncate">{building.name} {building.level && `(Lvl ${building.level})`}</p>
+                                                                  <div className="text-xs text-muted-foreground truncate flex items-center flex-wrap">
+                                                                      <span className="mr-1">Cost:</span> {formatCostWithIcons(building.cost)}
+                                                                  </div>
+                                                                  {building.energyCost || building.energyProduction ? (
+                                                                      <p className="text-xs text-muted-foreground truncate">
+                                                                          Energy: {building.energyProduction ? <span className="text-[hsl(var(--chart-1))]">{`+${building.energyProduction}`}</span> : <span className="text-destructive">{`-${building.energyCost}`}</span>}
+                                                                      </p>
+                                                                  ) : null}
+                                                                  {isConstructing && (
+                                                                      <p className="text-xs text-primary animate-pulse">Constructing ({Math.round(progress)}%)...</p>
+                                                                  )}
+                                                              </div>
+                                                          </div>
+                                                          <Button
+                                                              size="sm"
+                                                              onClick={() => handleBuild(building)}
+                                                              disabled={isDisabled}
+                                                              className={cn(isDisabled && "opacity-50 cursor-not-allowed")}
+                                                          >
+                                                              {isConstructing ? "Building" : "Build"}
+                                                          </Button>
+                                                      </CardContent>
+                                                  </Card>
+                                              </TooltipTrigger>
+                                              <TooltipContent side="right" align="start" className="max-w-xs">
+                                                  <p className="font-semibold">{building.name} {building.level && `(Lvl ${building.level})`}</p>
+                                                  <p className="text-sm text-muted-foreground mb-2">{building.description}</p>
+                                                  <div className="text-sm space-y-1">
+                                                      <p>Cost: {formatCostWithIcons(building.cost)}</p>
+                                                      <p>Build Time: {building.constructionTime / 1000}s</p>
+                                                      {building.energyCost && <p>Energy Consumption: {building.energyCost}</p>}
+                                                      {building.energyProduction && <p>Energy Production: {building.energyProduction}</p>}
+                                                      {building.requires && <p className="text-amber-400">Requires: {building.requires}</p>}
+                                                  </div>
+                                                  {isConstructing && (
+                                                      <div className="mt-2">
+                                                          <p className="text-xs text-primary">Construction in progress...</p>
+                                                          <Progress value={progress} className="h-1 mt-1" />
+                                                      </div>
+                                                  )}
+                                                  {!hasEnoughResources(building.cost, resources) && !isConstructing && (
+                                                    <p className="text-xs text-destructive mt-2">Insufficient resources.</p>
+                                                  )}
+                                              </TooltipContent>
+                                          </Tooltip>
+                                      </SidebarMenuItem>
+                                  );
+                              })}
+                          </SidebarMenu>
+                        </SidebarGroupContent>
+                      </SidebarGroup>
+                    )
+                  ))}
                 </TabsContent>
+
 
                 {/* Shipyard Tab */}
                 <TabsContent value="shipyard" className="mt-0">
@@ -375,7 +428,7 @@ const ControlPanel: React.FC = () => {
                                             <ship.icon className="w-5 h-5 text-muted-foreground flex-shrink-0" />
                                             <div className="flex-1 min-w-0">
                                                 <p className="text-sm font-medium truncate">{ship.name}</p>
-                                                <div className="text-xs text-muted-foreground truncate flex items-center">
+                                                <div className="text-xs text-muted-foreground truncate flex items-center flex-wrap">
                                                      <span className="mr-1">Cost:</span> {formatCostWithIcons(ship.cost)}
                                                 </div>
                                             </div>
@@ -394,6 +447,9 @@ const ControlPanel: React.FC = () => {
                                       {/* TODO: Add build time for ships */}
                                       {ship.requires && <p className="text-amber-400">Requires: {ship.requires}</p>}
                                  </div>
+                                  {!hasEnoughResources(ship.cost, resources) && (
+                                    <p className="text-xs text-destructive mt-2">Insufficient resources.</p>
+                                  )}
                              </TooltipContent>
                         </Tooltip>
                     </SidebarMenuItem>
@@ -414,7 +470,7 @@ const ControlPanel: React.FC = () => {
                                             <item.icon className="w-5 h-5 text-muted-foreground flex-shrink-0" />
                                             <div className="flex-1 min-w-0">
                                                 <p className="text-sm font-medium truncate">{item.name}</p>
-                                                <div className="text-xs text-muted-foreground truncate flex items-center">
+                                                <div className="text-xs text-muted-foreground truncate flex items-center flex-wrap">
                                                     <span className="mr-1">Cost:</span> {formatCostWithIcons(item.cost)}
                                                 </div>
                                             </div>
@@ -434,6 +490,9 @@ const ControlPanel: React.FC = () => {
                                       {item.unlocks && <p className="text-sky-400">Unlocks: {item.unlocks}</p>}
                                    </div>
                                    {item.completed && <p className="text-xs text-[hsl(var(--chart-1))] mt-2">Already Researched</p>}
+                                   {!hasEnoughResources(item.cost, resources) && !item.completed && (
+                                     <p className="text-xs text-destructive mt-2">Insufficient resources.</p>
+                                   )}
                              </TooltipContent>
                         </Tooltip>
                     </SidebarMenuItem>

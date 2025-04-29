@@ -17,6 +17,9 @@ export enum OreType {
 // Define sector types
 export type SectorType = 'empty' | 'planet' | 'star' | 'anomaly' | 'player_colony' | 'ai_colony';
 
+// Define building categories
+export type BuildingCategory = 'Core' | 'Production' | 'Power' | 'Defense' | 'Utility' | 'Shipyard';
+
 // Define the structure for a sector in the galaxy map
 export interface Sector {
   id: string;
@@ -42,6 +45,7 @@ export type Resources = {
 export interface Building {
   id: string;
   name: string;
+  category: BuildingCategory; // Add category property
   description: string;
   cost: Partial<Record<OreType, number>>; // Cost can be multiple ore types
   icon: React.ElementType;
