@@ -49,6 +49,7 @@ export interface Building {
   energyCost?: number;
   energyProduction?: number;
   requires?: string; // Research or other building requirement
+  constructionTime: number; // Time to build in milliseconds
 }
 
 export interface ShipType {
@@ -69,4 +70,10 @@ export interface ResearchItem {
     icon: React.ElementType;
     unlocks?: string; // e.g., 'Nuclear Reactor'
     completed?: boolean;
+}
+
+// Type for tracking construction progress
+export interface ConstructionProgress {
+    startTime: number;
+    duration: number;
 }
