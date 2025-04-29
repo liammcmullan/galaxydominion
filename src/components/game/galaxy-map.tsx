@@ -3,7 +3,7 @@
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { Planet, Star, HelpCircle } from 'lucide-react'; // Example icons
+import { Globe, Star, HelpCircle } from 'lucide-react'; // Replaced Planet with Globe
 
 // Define types for map elements
 type SectorType = 'empty' | 'planet' | 'star' | 'anomaly' | 'player_colony' | 'ai_colony';
@@ -59,7 +59,7 @@ const GalaxyMap: React.FC = () => {
   const getSectorIcon = (type: SectorType) => {
     switch (type) {
       case 'planet':
-        return <Planet className="w-4 h-4 text-blue-400" />;
+        return <Globe className="w-4 h-4 text-blue-400" />; // Use Globe icon
       case 'star':
         return <Star className="w-4 h-4 text-yellow-400" />;
       case 'anomaly':

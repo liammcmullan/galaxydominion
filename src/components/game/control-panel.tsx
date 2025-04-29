@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Package, Rocket, FlaskConical, Users, Sun, Atom, ShieldCheck, Target, Warehouse, Banknote, Library, HeartPulse, Ship, Factory } from 'lucide-react';
 import { SidebarHeader, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarGroupContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarSeparator, SidebarTrigger } from '@/components/ui/sidebar';
+import { cn } from '@/lib/utils'; // Import cn utility
 
 // Placeholder data types (expand as needed)
 interface Building {
@@ -141,7 +142,7 @@ const ControlPanel: React.FC = () => {
                 <div className="flex justify-between"><span>Ore:</span><span>{ore}</span></div>
                  <div className="flex justify-between">
                     <span>Energy:</span>
-                    <span className={cn(energyProduction >= energyConsumption ? 'text-green-400' : 'text-red-400')}>
+                    <span className={cn(energyProduction >= energyConsumption ? 'text-[hsl(var(--chart-1))]' : 'text-destructive')}> {/* Use theme color or destructive */}
                        {energyProduction - energyConsumption} ({energyProduction} / {energyConsumption})
                     </span>
                  </div>
@@ -218,7 +219,7 @@ const ControlPanel: React.FC = () => {
                <SidebarMenu>
                 {availableResearch.map((item) => (
                     <SidebarMenuItem key={item.id}>
-                         <Card className={cn("w-full", item.completed ? "bg-green-900/30 border-green-700" : "bg-card/50")}>
+                         <Card className={cn("w-full", item.completed ? "bg-[hsl(var(--chart-1))]/30 border-[hsl(var(--chart-1))]" : "bg-card/50")}> {/* Use theme color */}
                             <CardContent className="p-2 flex items-center justify-between gap-2">
                                  <div className="flex items-center gap-2 flex-1 min-w-0">
                                      <item.icon className="w-5 h-5 text-muted-foreground flex-shrink-0" />
