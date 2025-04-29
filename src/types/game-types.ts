@@ -59,6 +59,7 @@ export interface Building {
   baseConstructionTime: number; // Base time to build level 1 in milliseconds
   timeMultiplier?: number; // Multiplier per level (e.g., 1.5)
   oreTarget?: OreType; // Specific ore this building targets (e.g., for refineries)
+  baseProductionRate?: number; // Base production rate per second for level 1 (for Production buildings)
 }
 
 export interface ShipType {

@@ -25,12 +25,12 @@ const availableBuildings: Building[] = [
   { id: 'colony_hub', name: 'Colony Hub', category: 'Core', description: 'Central structure. Upgrading allows more buildings.', baseCost: { [OreTypeEnum.Iron]: 100 }, icon: Factory, level: 1, baseConstructionTime: 10000, maxLevel: 5, costMultiplier: 1.8, timeMultiplier: 1.6 }, // 10 seconds base
   { id: 'colony_expansion', name: 'Colony Expansion', category: 'Core', description: 'Increases population cap and worker allocation.', baseCost: { [OreTypeEnum.Iron]: 200, [OreTypeEnum.Titanium]: 20 }, icon: Users, level: 1, baseConstructionTime: 20000, maxLevel: 3, costMultiplier: 2.0, timeMultiplier: 1.8 },
 
-  // Production (Specific Refineries)
-  { id: 'iron_refinery', name: 'Iron Refinery', category: 'Production', description: getOreRefineryDescription(OreTypeEnum.Iron), oreTarget: OreTypeEnum.Iron, baseCost: { [OreTypeEnum.Iron]: 50, [OreTypeEnum.Copper]: 10 }, icon: Package, level: 1, baseEnergyCost: 5, baseConstructionTime: 6000, maxLevel: 5, costMultiplier: 1.5, timeMultiplier: 1.4 },
-  { id: 'copper_refinery', name: 'Copper Refinery', category: 'Production', description: getOreRefineryDescription(OreTypeEnum.Copper), oreTarget: OreTypeEnum.Copper, baseCost: { [OreTypeEnum.Iron]: 60, [OreTypeEnum.Copper]: 25 }, icon: Package, level: 1, baseEnergyCost: 6, baseConstructionTime: 7000, maxLevel: 5, costMultiplier: 1.6, timeMultiplier: 1.4 },
-  { id: 'gold_refinery', name: 'Gold Refinery', category: 'Production', description: getOreRefineryDescription(OreTypeEnum.Gold), oreTarget: OreTypeEnum.Gold, baseCost: { [OreTypeEnum.Iron]: 100, [OreTypeEnum.Copper]: 40, [OreTypeEnum.Gold]: 5 }, icon: Package, level: 1, baseEnergyCost: 8, baseConstructionTime: 12000, maxLevel: 5, costMultiplier: 1.8, timeMultiplier: 1.5 },
-  { id: 'titanium_refinery', name: 'Titanium Refinery', category: 'Production', description: getOreRefineryDescription(OreTypeEnum.Titanium), oreTarget: OreTypeEnum.Titanium, baseCost: { [OreTypeEnum.Iron]: 150, [OreTypeEnum.Titanium]: 30 }, icon: Package, level: 1, baseEnergyCost: 10, baseConstructionTime: 15000, maxLevel: 5, costMultiplier: 1.7, timeMultiplier: 1.5 },
-  { id: 'uranium_refinery', name: 'Uranium Refinery', category: 'Production', description: getOreRefineryDescription(OreTypeEnum.Uranium), oreTarget: OreTypeEnum.Uranium, baseCost: { [OreTypeEnum.Titanium]: 100, [OreTypeEnum.Uranium]: 10 }, icon: Package, level: 1, baseEnergyCost: 12, requires: 'Research: Nuclear Power', baseConstructionTime: 25000, maxLevel: 5, costMultiplier: 2.0, timeMultiplier: 1.6 },
+  // Production (Specific Refineries) - Added baseProductionRate
+  { id: 'iron_refinery', name: 'Iron Refinery', category: 'Production', description: getOreRefineryDescription(OreTypeEnum.Iron), oreTarget: OreTypeEnum.Iron, baseCost: { [OreTypeEnum.Iron]: 50, [OreTypeEnum.Copper]: 10 }, icon: Package, level: 1, baseEnergyCost: 5, baseConstructionTime: 6000, maxLevel: 5, costMultiplier: 1.5, timeMultiplier: 1.4, baseProductionRate: 1 },
+  { id: 'copper_refinery', name: 'Copper Refinery', category: 'Production', description: getOreRefineryDescription(OreTypeEnum.Copper), oreTarget: OreTypeEnum.Copper, baseCost: { [OreTypeEnum.Iron]: 60, [OreTypeEnum.Copper]: 25 }, icon: Package, level: 1, baseEnergyCost: 6, baseConstructionTime: 7000, maxLevel: 5, costMultiplier: 1.6, timeMultiplier: 1.4, baseProductionRate: 0.8 },
+  { id: 'gold_refinery', name: 'Gold Refinery', category: 'Production', description: getOreRefineryDescription(OreTypeEnum.Gold), oreTarget: OreTypeEnum.Gold, baseCost: { [OreTypeEnum.Iron]: 100, [OreTypeEnum.Copper]: 40, [OreTypeEnum.Gold]: 5 }, icon: Package, level: 1, baseEnergyCost: 8, baseConstructionTime: 12000, maxLevel: 5, costMultiplier: 1.8, timeMultiplier: 1.5, baseProductionRate: 0.2 },
+  { id: 'titanium_refinery', name: 'Titanium Refinery', category: 'Production', description: getOreRefineryDescription(OreTypeEnum.Titanium), oreTarget: OreTypeEnum.Titanium, baseCost: { [OreTypeEnum.Iron]: 150, [OreTypeEnum.Titanium]: 30 }, icon: Package, level: 1, baseEnergyCost: 10, baseConstructionTime: 15000, maxLevel: 5, costMultiplier: 1.7, timeMultiplier: 1.5, baseProductionRate: 0.5 },
+  { id: 'uranium_refinery', name: 'Uranium Refinery', category: 'Production', description: getOreRefineryDescription(OreTypeEnum.Uranium), oreTarget: OreTypeEnum.Uranium, baseCost: { [OreTypeEnum.Titanium]: 100, [OreTypeEnum.Uranium]: 10 }, icon: Package, level: 1, baseEnergyCost: 12, requires: 'Research: Nuclear Power', baseConstructionTime: 25000, maxLevel: 5, costMultiplier: 2.0, timeMultiplier: 1.6, baseProductionRate: 0.1 },
 
   // Power
   { id: 'solar_plant', name: 'Solar Plant', category: 'Power', description: 'Low output, cheap, low maintenance.', baseCost: { [OreTypeEnum.Iron]: 80, [OreTypeEnum.Copper]: 20 }, icon: Sun, level: 1, baseEnergyProduction: 20, baseConstructionTime: 7000, maxLevel: 5, costMultiplier: 1.4, timeMultiplier: 1.3 },
@@ -90,6 +90,14 @@ const calculateEnergy = (baseEnergy: number | undefined, level: number, multipli
     return Math.floor(baseEnergy * Math.pow(energyMultiplier, level - 1));
 };
 
+// Calculate production rate for a specific level (e.g., for refineries)
+const calculateProductionRate = (baseRate: number | undefined, level: number, multiplier: number = 1): number => {
+    if (baseRate === undefined) return 0;
+    // Using costMultiplier for rate increase, adjust if needed
+    const rateMultiplier = multiplier;
+    return parseFloat((baseRate * Math.pow(rateMultiplier, level - 1)).toFixed(2)); // Limit decimals
+};
+
 
 // Helper to format resource costs with icons
 const formatCostWithIcons = (cost: Partial<Record<OreType, number>>): React.ReactNode => {
@@ -129,10 +137,22 @@ const getOreIcon = (oreType: OreType) => {
     }
 };
 
+// Helper to format elapsed time
+const formatTime = (totalSeconds: number): string => {
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = Math.floor(totalSeconds % 60);
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+};
+
+
 // --- Component State and Logic ---
 
 const ControlPanel: React.FC = () => {
   const { toast } = useToast();
+  const [gameTime, setGameTime] = useState(0); // Game time in seconds
+  const [lastUpdateTime, setLastUpdateTime] = useState(Date.now());
+
   // Placeholder state for resources
   const [resources, setResources] = useState<Resources>({
     [OreTypeEnum.Iron]: 1000,
@@ -178,6 +198,9 @@ const ControlPanel: React.FC = () => {
            const buildingDef = availableBuildings.find(b => b.id === id);
            const level = buildingLevels[id] ?? 1;
            if (buildingDef) {
+               // Check if the building is currently constructing - skip its energy cost/prod if so
+               if (constructing[id]) return;
+
                // Use the dedicated energyMultiplier if available, otherwise fallback to costMultiplier or 1
                const energyMult = buildingDef.energyMultiplier ?? buildingDef.costMultiplier ?? 1;
                production += calculateEnergy(buildingDef.baseEnergyProduction, level, energyMult);
@@ -189,40 +212,78 @@ const ControlPanel: React.FC = () => {
            ...prev,
            Energy: { production, consumption, balance: production - consumption }
        }));
-   }, [builtBuildings, buildingLevels]); // Dependencies
+   }, [builtBuildings, buildingLevels, constructing]); // Add constructing as dependency
 
-  // Effect to recalculate energy when buildings or levels change
+  // Effect to recalculate energy when buildings, levels, or construction status change
   useEffect(() => {
       recalculateEnergyBalance();
   }, [recalculateEnergyBalance]); // Use the memoized callback
 
-  // Update construction progress periodically
+  // Main Game Loop Timer (runs every second)
   useEffect(() => {
-    const interval = setInterval(() => {
+    const gameLoop = setInterval(() => {
       const now = Date.now();
-      const newProgress: Record<string, number> = {};
-      let changed = false;
-      for (const buildingId in constructing) {
-        const progressData = constructing[buildingId];
-        if (progressData) {
-          const elapsed = now - progressData.startTime;
-          const progress = Math.min(100, (elapsed / progressData.duration) * 100);
-          if (constructionProgress[buildingId] !== progress) {
-            newProgress[buildingId] = progress;
-            changed = true;
-          } else {
-            newProgress[buildingId] = constructionProgress[buildingId]; // Keep existing progress if no change
-          }
-        }
-      }
-       // Only update state if any progress actually changed
-      if (changed) {
-         setConstructionProgress(prev => ({ ...prev, ...newProgress })); // Merge updates
-      }
-    }, 100); // Update progress every 100ms
+      const deltaTime = (now - lastUpdateTime) / 1000; // Time difference in seconds
 
-    return () => clearInterval(interval);
-  }, [constructing, constructionProgress]);
+      setGameTime(prev => prev + deltaTime);
+      setLastUpdateTime(now);
+
+      // --- Resource Generation ---
+      const energyBalance = resources.Energy?.balance ?? 0;
+      const efficiency = energyBalance >= 0 ? 1 : Math.max(0, 1 + (energyBalance / (resources.Energy?.consumption ?? 1))); // Crude efficiency model
+
+      const generatedResources: Partial<Resources> = {};
+      builtBuildings.forEach(id => {
+         const buildingDef = availableBuildings.find(b => b.id === id);
+         const level = buildingLevels[id] ?? 1;
+         // Only generate if it's a Production building, has a target ore, has a base rate, and is not constructing
+         if (buildingDef?.category === 'Production' && buildingDef.oreTarget && buildingDef.baseProductionRate && !constructing[id]) {
+            const productionRate = calculateProductionRate(buildingDef.baseProductionRate, level, buildingDef.costMultiplier ?? 1);
+            const generatedAmount = productionRate * efficiency * deltaTime; // Apply efficiency and delta time
+            const oreType = buildingDef.oreTarget;
+            generatedResources[oreType] = (generatedResources[oreType] ?? 0) + generatedAmount;
+         }
+      });
+
+      // Update resources state
+      if (Object.keys(generatedResources).length > 0) {
+         setResources(prev => {
+             const newResources = { ...prev };
+             for (const ore in generatedResources) {
+                 newResources[ore as OreType] = (newResources[ore as OreType] ?? 0) + generatedResources[ore as OreType]!;
+             }
+             return newResources;
+         });
+      }
+
+      // --- Construction Progress Update ---
+       const nowForProgress = Date.now(); // Use consistent time for progress check
+       const newProgress: Record<string, number> = {};
+       let changed = false;
+       for (const buildingId in constructing) {
+         const progressData = constructing[buildingId];
+         if (progressData) {
+           const elapsed = nowForProgress - progressData.startTime;
+           const progress = Math.min(100, (elapsed / progressData.duration) * 100);
+           if (constructionProgress[buildingId] !== progress) {
+             newProgress[buildingId] = progress;
+             changed = true;
+           } else {
+             newProgress[buildingId] = constructionProgress[buildingId]; // Keep existing progress if no change
+           }
+         }
+       }
+       // Only update state if any progress actually changed
+       if (changed) {
+          setConstructionProgress(prev => ({ ...prev, ...newProgress })); // Merge updates
+       }
+
+
+    }, 1000); // Run every 1000ms (1 second)
+
+    return () => clearInterval(gameLoop); // Cleanup on unmount
+  }, [lastUpdateTime, resources.Energy, builtBuildings, buildingLevels, constructing, constructionProgress]); // Include dependencies
+
 
   // Hook to force re-render (use sparingly)
   const [, forceUpdate] = useReducer(x => x + 1, 0);
@@ -313,10 +374,8 @@ const ControlPanel: React.FC = () => {
         // Update building level
         setBuildingLevels(prev => ({ ...prev, [building.id]: targetLevel }));
 
-       // Recalculate energy AFTER level update
-       recalculateEnergyBalance(); // Trigger recalculation
-
-       // Remove from constructing state and progress
+       // Remove from constructing state and progress AFTER level update
+       // Energy balance recalculation will happen automatically via useEffect
        setConstructing(prev => {
            const newState = { ...prev };
            delete newState[building.id];
@@ -438,7 +497,7 @@ const ControlPanel: React.FC = () => {
                  {Object.values(OreTypeEnum).map(ore => (
                       <div className="flex justify-between items-center" key={ore}>
                          <span>{getOreIcon(ore)}{ore}:</span>
-                         <span>{resources[ore] ?? 0}</span>
+                         <span>{Math.floor(resources[ore] ?? 0).toLocaleString()}</span> {/* Format number */}
                       </div>
                  ))}
                  {resources.Energy && (
@@ -488,6 +547,7 @@ const ControlPanel: React.FC = () => {
                                   const timeForNextLevel = calculateTime(buildingDef.baseConstructionTime, targetLevel, buildingDef.timeMultiplier);
                                   const energyCostNextLevel = calculateEnergy(buildingDef.baseEnergyCost, targetLevel, buildingDef.energyMultiplier ?? buildingDef.costMultiplier);
                                   const energyProdNextLevel = calculateEnergy(buildingDef.baseEnergyProduction, targetLevel, buildingDef.energyMultiplier ?? buildingDef.costMultiplier);
+                                  const prodRateNextLevel = calculateProductionRate(buildingDef.baseProductionRate, targetLevel, buildingDef.costMultiplier ?? 1); // Use costMultiplier for prod rate increase
 
                                   const hasResourcesForNext = hasEnoughResources(costForNextLevel, resources);
 
@@ -507,6 +567,7 @@ const ControlPanel: React.FC = () => {
 
                                   const currentEnergyCost = calculateEnergy(buildingDef.baseEnergyCost, currentLevel, buildingDef.energyMultiplier ?? buildingDef.costMultiplier);
                                   const currentEnergyProd = calculateEnergy(buildingDef.baseEnergyProduction, currentLevel, buildingDef.energyMultiplier ?? buildingDef.costMultiplier);
+                                  const currentProdRate = calculateProductionRate(buildingDef.baseProductionRate, currentLevel, buildingDef.costMultiplier ?? 1);
 
                                   return (
                                       <SidebarMenuItem key={buildingDef.id} className="p-0">
@@ -542,6 +603,12 @@ const ControlPanel: React.FC = () => {
                                                                           Energy: {currentEnergyProd > 0 ? <span className="text-[hsl(var(--chart-1))]">{`+${currentEnergyProd}`}</span> : (currentEnergyCost > 0 ? <span className="text-destructive">{`-${currentEnergyCost}`}</span> : '0')}
                                                                       </p>
                                                                   ) : null}
+                                                                   {/* Show current production rate */}
+                                                                   {currentProdRate > 0 && !isConstructing && (
+                                                                       <p className="text-xs text-muted-foreground truncate">
+                                                                           {buildingDef.oreTarget} Prod: +{currentProdRate}/s
+                                                                       </p>
+                                                                   )}
                                                                   {isConstructing && (
                                                                       <p className="text-xs text-accent">Building Lvl {constructionData.targetLevel} ({Math.round(progress)}%)...</p>
                                                                   )}
@@ -569,6 +636,7 @@ const ControlPanel: React.FC = () => {
                                                                 <p className="font-medium">Current Level ({currentLevel}):</p>
                                                                 {currentEnergyCost > 0 && <p>Energy Cost: {currentEnergyCost}</p>}
                                                                 {currentEnergyProd > 0 && <p>Energy Prod: {currentEnergyProd}</p>}
+                                                                {currentProdRate > 0 && <p>{buildingDef.oreTarget} Prod Rate: {currentProdRate}/s</p>}
                                                                 {/* Add other current level stats here */}
                                                             </>
                                                         )}
@@ -580,6 +648,7 @@ const ControlPanel: React.FC = () => {
                                                               <p>Build Time: {timeForNextLevel / 1000}s</p>
                                                               {energyCostNextLevel > 0 && <p>Energy Cost: {energyCostNextLevel}</p>}
                                                               {energyProdNextLevel > 0 && <p>Energy Prod: {energyProdNextLevel}</p>}
+                                                              {prodRateNextLevel > 0 && <p>{buildingDef.oreTarget} Prod Rate: {prodRateNextLevel}/s</p>}
                                                           </>
                                                       )}
                                                        {isMaxLevel && <p className="text-primary font-medium mt-1">Maximum Level Reached</p>}
@@ -785,15 +854,44 @@ const ControlPanel: React.FC = () => {
                     <CardContent className="text-sm space-y-2">
                     <p>Population: 100 / 150 (Placeholder)</p>
                     <p>Happiness: 85% (Placeholder)</p>
-                    <p>Ore Extraction Rate: (Details TBD)</p>
-                    <p>Defenses: Active (Placeholder)</p>
-                    {/* Add more detailed stats: buildings list, ships docked, etc. */}
+                     <h5 className="font-semibold pt-2 border-t border-border/50 mt-2">Ore Production</h5>
+                      <ul className="list-disc list-inside text-xs">
+                         {Object.values(OreTypeEnum).map(ore => {
+                              let totalRate = 0;
+                              builtBuildings.forEach(id => {
+                                  const buildingDef = availableBuildings.find(b => b.id === id);
+                                  const level = buildingLevels[id] ?? 1;
+                                  if (buildingDef?.category === 'Production' && buildingDef.oreTarget === ore && buildingDef.baseProductionRate && !constructing[id]) {
+                                      totalRate += calculateProductionRate(buildingDef.baseProductionRate, level, buildingDef.costMultiplier ?? 1);
+                                  }
+                              });
+                              const energyBalance = resources.Energy?.balance ?? 0;
+                              const efficiency = energyBalance >= 0 ? 1 : Math.max(0, 1 + (energyBalance / (resources.Energy?.consumption ?? 1)));
+                              const effectiveRate = (totalRate * efficiency).toFixed(2);
+
+                              if (totalRate > 0) {
+                                return <li key={ore}>{getOreIcon(ore)}{ore}: +{effectiveRate}/s {efficiency < 1 && <span className="text-destructive">({Math.round(efficiency*100)}% eff.)</span>}</li>;
+                              }
+                              return null;
+                         }).filter(Boolean)}
+                         {Object.values(OreTypeEnum).every(ore => { /* Check if any production building exists */
+                             return ![...builtBuildings].some(id => availableBuildings.find(b => b.id === id)?.oreTarget === ore);
+                         }) && <li className="italic text-muted-foreground">Build refineries to produce ore.</li>}
+                      </ul>
+
                      <h5 className="font-semibold pt-2 border-t border-border/50 mt-2">Built Structures</h5>
                      <ul className="list-disc list-inside text-xs">
                           {[...builtBuildings].sort().map(id => { // Sort alphabetically
                               const building = availableBuildings.find(b => b.id === id);
                               const level = buildingLevels[id]; // Get level from state
-                              return building ? <li key={id}>{building.name} {level ? `(Lvl ${level})` : ''}</li> : null;
+                              const isConstructing = constructing[id];
+                              const progress = constructionProgress[id] ?? 0;
+                              return building ? (
+                                  <li key={id}>
+                                      {building.name} {level ? `(Lvl ${level})` : ''}
+                                      {isConstructing && <span className="text-accent ml-1"> (Upgrading Lvl {constructing[id].targetLevel} - {Math.round(progress)}%)</span>}
+                                  </li>
+                              ) : null;
                           })}
                      </ul>
                      <h5 className="font-semibold pt-2 border-t border-border/50 mt-2">Completed Research</h5>
@@ -817,7 +915,8 @@ const ControlPanel: React.FC = () => {
        </SidebarContent>
        <SidebarSeparator />
        <SidebarFooter>
-             <div className="text-xs text-muted-foreground px-2">Game Time: 00:00:00 (TBD)</div>
+             {/* Display formatted game time */}
+             <div className="text-xs text-muted-foreground px-2">Game Time: {formatTime(gameTime)}</div>
        </SidebarFooter>
        </>
   );
