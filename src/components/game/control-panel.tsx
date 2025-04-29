@@ -85,7 +85,9 @@ const calculateTime = (baseTime: number, level: number, multiplier: number = 1):
 // Calculate energy production/cost for a specific level
 const calculateEnergy = (baseEnergy: number | undefined, level: number, multiplier: number = 1): number => {
     if (baseEnergy === undefined) return 0;
-    return Math.floor(baseEnergy * Math.pow(multiplier, level - 1));
+    // Apply a slightly different multiplier for energy if needed, or use a dedicated one. Defaulting to costMultiplier for now.
+    const energyMultiplier = multiplier; // Or use building.energyMultiplier if defined differently
+    return Math.floor(baseEnergy * Math.pow(energyMultiplier, level - 1));
 };
 
 
@@ -136,7 +138,7 @@ const ControlPanel: React.FC = () => {
     [OreTypeEnum.Iron]: 1000,
     [OreTypeEnum.Copper]: 500,
     [OreTypeEnum.Gold]: 100,
-    [OreTypeEnum.Titanium]: 50,
+    [OreTypeEnum.Titanium]: 1000, // Updated starting Titanium
     [OreTypeEnum.Uranium]: 10,
     Energy: { production: 0, consumption: 0, balance: 0 },
   });
@@ -176,8 +178,10 @@ const ControlPanel: React.FC = () => {
            const buildingDef = availableBuildings.find(b => b.id === id);
            const level = buildingLevels[id] ?? 1;
            if (buildingDef) {
-                production += calculateEnergy(buildingDef.baseEnergyProduction, level, buildingDef.energyMultiplier);
-                consumption += calculateEnergy(buildingDef.baseEnergyCost, level, buildingDef.energyMultiplier);
+               // Use the dedicated energyMultiplier if available, otherwise fallback to costMultiplier or 1
+               const energyMult = buildingDef.energyMultiplier ?? buildingDef.costMultiplier ?? 1;
+               production += calculateEnergy(buildingDef.baseEnergyProduction, level, energyMult);
+               consumption += calculateEnergy(buildingDef.baseEnergyCost, level, energyMult);
            }
        });
 
@@ -255,10 +259,12 @@ const ControlPanel: React.FC = () => {
         const existingConstruction = constructing[building.id];
         toast({
             title: "Already In Progress",
-            description: `${building.name} is currently being ${isBuilding ? 'constructed' : 'upgraded'} to Level ${existingConstruction.targetLevel}.`,
+            description: `${building.name} is currently being ${existingConstruction.targetLevel === 1 ? 'constructed' : 'upgraded'} to Level ${existingConstruction.targetLevel}.`,
+            variant: "default" // Use default variant
         });
         return;
     }
+
 
     if (!areRequirementsMet(building.requires)) {
         toast({ title: "Requirements Not Met", description: `Cannot build or upgrade ${building.name}. Check requirements.`, variant: "destructive" });
@@ -480,8 +486,8 @@ const ControlPanel: React.FC = () => {
                                   const requirementsMet = areRequirementsMet(buildingDef.requires);
                                   const costForNextLevel = calculateCost(buildingDef.baseCost, targetLevel, buildingDef.costMultiplier);
                                   const timeForNextLevel = calculateTime(buildingDef.baseConstructionTime, targetLevel, buildingDef.timeMultiplier);
-                                  const energyCostNextLevel = calculateEnergy(buildingDef.baseEnergyCost, targetLevel, buildingDef.energyMultiplier);
-                                  const energyProdNextLevel = calculateEnergy(buildingDef.baseEnergyProduction, targetLevel, buildingDef.energyMultiplier);
+                                  const energyCostNextLevel = calculateEnergy(buildingDef.baseEnergyCost, targetLevel, buildingDef.energyMultiplier ?? buildingDef.costMultiplier);
+                                  const energyProdNextLevel = calculateEnergy(buildingDef.baseEnergyProduction, targetLevel, buildingDef.energyMultiplier ?? buildingDef.costMultiplier);
 
                                   const hasResourcesForNext = hasEnoughResources(costForNextLevel, resources);
 
@@ -490,7 +496,8 @@ const ControlPanel: React.FC = () => {
                                   // - If max level reached
                                   // - If requirements not met (for initial build or upgrade)
                                   // - If not enough resources for the next level
-                                  const isDisabled = isConstructing || isMaxLevel || !requirementsMet || !hasResourcesForNext;
+                                  // Allow interaction if constructing (to view tooltip)
+                                  const isDisabledForAction = isConstructing || isMaxLevel || !requirementsMet || !hasResourcesForNext;
 
                                   const buttonText = isConstructing
                                       ? `Building Lvl ${constructionData.targetLevel}`
@@ -498,16 +505,23 @@ const ControlPanel: React.FC = () => {
                                           ? (isMaxLevel ? "Max Level" : `Upgrade (Lvl ${targetLevel})`)
                                           : "Build (Lvl 1)";
 
+                                  const currentEnergyCost = calculateEnergy(buildingDef.baseEnergyCost, currentLevel, buildingDef.energyMultiplier ?? buildingDef.costMultiplier);
+                                  const currentEnergyProd = calculateEnergy(buildingDef.baseEnergyProduction, currentLevel, buildingDef.energyMultiplier ?? buildingDef.costMultiplier);
+
                                   return (
                                       <SidebarMenuItem key={buildingDef.id} className="p-0">
                                           <Tooltip>
                                               <TooltipTrigger asChild>
-                                                  <Card className={cn("w-full bg-card/50 hover:bg-card/70 transition-colors relative overflow-hidden", isBuilt && !isConstructing && "border-primary/50 bg-primary/10")}>
+                                                  <Card className={cn(
+                                                        "w-full bg-card/50 hover:bg-card/70 transition-colors relative overflow-hidden",
+                                                        isBuilt && !isConstructing && "border-primary/50 bg-primary/10",
+                                                        isConstructing && "border-accent/50 bg-accent/10 animate-pulse" // Visual cue for construction
+                                                     )}>
                                                       {/* Progress Bar Overlay */}
                                                       {isConstructing && (
                                                           <Progress
                                                               value={progress}
-                                                              className="absolute top-0 left-0 w-full h-full rounded-none opacity-30 bg-transparent [&>div]:bg-primary"
+                                                              className="absolute top-0 left-0 w-full h-full rounded-none opacity-30 bg-transparent [&>div]:bg-accent" // Use accent for progress
                                                               aria-label={`Construction progress: ${Math.round(progress)}%`}
                                                           />
                                                       )}
@@ -523,21 +537,22 @@ const ControlPanel: React.FC = () => {
                                                                        {isMaxLevel && <span className="text-xs text-primary">Max Level</span>}
                                                                   </div>
                                                                   {/* Show current energy impact */}
-                                                                  {buildingDef.baseEnergyCost !== undefined || buildingDef.baseEnergyProduction !== undefined ? (
+                                                                   {currentEnergyCost > 0 || currentEnergyProd > 0 ? (
                                                                       <p className="text-xs text-muted-foreground truncate">
-                                                                          Energy: {calculateEnergy(buildingDef.baseEnergyProduction, currentLevel, buildingDef.energyMultiplier) > 0 ? <span className="text-[hsl(var(--chart-1))]">{`+${calculateEnergy(buildingDef.baseEnergyProduction, currentLevel, buildingDef.energyMultiplier)}`}</span> : (calculateEnergy(buildingDef.baseEnergyCost, currentLevel, buildingDef.energyMultiplier) > 0 ? <span className="text-destructive">{`-${calculateEnergy(buildingDef.baseEnergyCost, currentLevel, buildingDef.energyMultiplier)}`}</span> : '0')}
+                                                                          Energy: {currentEnergyProd > 0 ? <span className="text-[hsl(var(--chart-1))]">{`+${currentEnergyProd}`}</span> : (currentEnergyCost > 0 ? <span className="text-destructive">{`-${currentEnergyCost}`}</span> : '0')}
                                                                       </p>
                                                                   ) : null}
                                                                   {isConstructing && (
-                                                                      <p className="text-xs text-primary animate-pulse">Building Lvl {constructionData.targetLevel} ({Math.round(progress)}%)...</p>
+                                                                      <p className="text-xs text-accent">Building Lvl {constructionData.targetLevel} ({Math.round(progress)}%)...</p>
                                                                   )}
                                                               </div>
                                                           </div>
                                                           <Button
                                                               size="sm"
                                                               onClick={() => handleBuildOrUpgrade(buildingDef)}
-                                                              disabled={isDisabled}
-                                                              className={cn(isDisabled && !isConstructing && "opacity-50 cursor-not-allowed")} // Don't grey out if constructing
+                                                              disabled={isDisabledForAction} // Use disable logic for action
+                                                              className={cn(isDisabledForAction && "opacity-50 cursor-not-allowed")}
+                                                              variant={isConstructing ? "outline" : "default"} // Use outline variant when constructing
                                                           >
                                                               {buttonText}
                                                           </Button>
@@ -548,29 +563,39 @@ const ControlPanel: React.FC = () => {
                                                   <p className="font-semibold text-sm">{buildingDef.name} {currentLevel > 0 ? `(Lvl ${currentLevel})` : '(Not Built)'}</p>
                                                   <p className="text-muted-foreground mb-2">{buildingDef.description}</p>
                                                   <div className="space-y-1">
+                                                        {/* Current Stats if built */}
+                                                        {isBuilt && !isConstructing && (
+                                                            <>
+                                                                <p className="font-medium">Current Level ({currentLevel}):</p>
+                                                                {currentEnergyCost > 0 && <p>Energy Cost: {currentEnergyCost}</p>}
+                                                                {currentEnergyProd > 0 && <p>Energy Prod: {currentEnergyProd}</p>}
+                                                                {/* Add other current level stats here */}
+                                                            </>
+                                                        )}
                                                       {/* Show stats for NEXT level if not max */}
                                                       {!isMaxLevel && (
                                                           <>
-                                                              <p className="font-medium">Next Level ({targetLevel}):</p>
+                                                              <p className="font-medium mt-1">Next Level ({targetLevel}):</p>
                                                               <p>Cost: {formatCostWithIcons(costForNextLevel)}</p>
                                                               <p>Build Time: {timeForNextLevel / 1000}s</p>
-                                                              {buildingDef.baseEnergyCost !== undefined && <p>Energy Cost: {energyCostNextLevel}</p>}
-                                                              {buildingDef.baseEnergyProduction !== undefined && <p>Energy Prod: {energyProdNextLevel}</p>}
+                                                              {energyCostNextLevel > 0 && <p>Energy Cost: {energyCostNextLevel}</p>}
+                                                              {energyProdNextLevel > 0 && <p>Energy Prod: {energyProdNextLevel}</p>}
                                                           </>
                                                       )}
-                                                       {isMaxLevel && <p className="text-primary font-medium">Maximum Level Reached</p>}
-                                                      {buildingDef.requires && <p className={cn("text-amber-400", !requirementsMet && "text-destructive/80")}>Requires: {Array.isArray(buildingDef.requires) ? buildingDef.requires.join(', ') : buildingDef.requires}</p>}
+                                                       {isMaxLevel && <p className="text-primary font-medium mt-1">Maximum Level Reached</p>}
+                                                      {buildingDef.requires && <p className={cn("text-amber-400 mt-1", !areRequirementsMet(buildingDef.requires) && "text-destructive/80")}>Requires: {Array.isArray(buildingDef.requires) ? buildingDef.requires.join(', ') : buildingDef.requires}</p>}
                                                   </div>
                                                   {isConstructing && (
                                                       <div className="mt-2">
-                                                          <p className="text-xs text-primary">Construction in progress...</p>
-                                                          <Progress value={progress} className="h-1 mt-1" />
+                                                          <p className="text-xs text-accent">Construction in progress...</p>
+                                                          <Progress value={progress} className="h-1 mt-1 bg-secondary [&>div]:bg-accent" />
+                                                          {/* Optionally show remaining time */}
                                                       </div>
                                                   )}
                                                   {!isConstructing && !isMaxLevel && !hasResourcesForNext && (
                                                     <p className="text-xs text-destructive mt-2">Insufficient resources for Level {targetLevel}.</p>
                                                   )}
-                                                   {!isConstructing && !requirementsMet && (
+                                                   {!isConstructing && !requirementsMet && currentLevel === 0 && ( // Only show requirement error if not built yet
                                                      <p className="text-xs text-destructive mt-2">Requirements not met.</p>
                                                   )}
                                               </TooltipContent>
@@ -719,15 +744,24 @@ const ControlPanel: React.FC = () => {
                                         <p className="font-semibold text-sm">{item.name} {currentLevel > 0 ? `(Lvl ${currentLevel})` : '(Not Researched)'}</p>
                                         <p className="text-muted-foreground mb-2">{item.description}</p>
                                         <div className="space-y-1">
+                                             {/* Current Level Stats */}
+                                             {currentLevel > 0 && (
+                                                <>
+                                                    <p className="font-medium">Current Level ({currentLevel}):</p>
+                                                    {/* Add current level effects description here */}
+                                                    {/* e.g., <p>Effect: +{currentLevel * 5}% speed</p> */}
+                                                </>
+                                             )}
                                             {!isMaxLevel && (
                                                 <>
-                                                   <p className="font-medium">Next Level ({targetLevel}):</p>
+                                                   <p className="font-medium mt-1">Next Level ({targetLevel}):</p>
                                                    <p>Cost: {formatCostWithIcons(costForNextLevel)}</p>
                                                    <p>Research Time: {timeForNextLevel / 1000}s</p>
+                                                   {/* Add next level effects description here */}
                                                 </>
                                             )}
-                                             {isMaxLevel && <p className="text-primary font-medium">Maximum Level Reached</p>}
-                                            {item.unlocks && <p className="text-sky-400">Unlocks: {item.unlocks}</p>}
+                                             {isMaxLevel && <p className="text-primary font-medium mt-1">Maximum Level Reached</p>}
+                                            {item.unlocks && <p className="text-sky-400 mt-1">Unlocks: {item.unlocks}</p>}
                                         </div>
                                         {!hasLab && <p className="text-xs text-destructive mt-2">Requires Research Lab.</p>}
                                          {isResearching && <p className="text-xs text-primary mt-2">Research in progress...</p>}
