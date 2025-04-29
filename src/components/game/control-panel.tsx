@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from 'react';
@@ -5,121 +6,152 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Package, Rocket, FlaskConical, Users, Sun, Atom, ShieldCheck, Target, Warehouse, Banknote, Library, HeartPulse, Ship, Factory } from 'lucide-react';
+import { Package, Rocket, FlaskConical, Users, Sun, Atom, ShieldCheck, Target, Warehouse, Banknote, Library, HeartPulse, Ship, Factory, Mountain, Diamond } from 'lucide-react'; // Added Mountain, Diamond
 import { SidebarHeader, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarGroupContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarSeparator, SidebarTrigger } from '@/components/ui/sidebar';
-import { cn } from '@/lib/utils'; // Import cn utility
+import { cn } from '@/lib/utils';
+import type { Building, ShipType, ResearchItem, Resources, OreType } from '@/types/game-types'; // Import types
+import { OreType as OreTypeEnum } from '@/types/game-types'; // Import enum
 
-// Placeholder data types (expand as needed)
-interface Building {
-  id: string;
-  name: string;
-  description: string;
-  cost: number; // Example cost in ore
-  icon: React.ElementType;
-  level?: number;
-  energyCost?: number;
-}
-
-interface ShipType {
-  id: string;
-  name: string;
-  description: string;
-  cost: number;
-  icon: React.ElementType;
-  requires?: string; // e.g., Ship Construction Facility Level 2
-}
-
-interface ResearchItem {
-    id: string;
-    name: string;
-    description: string;
-    cost: number;
-    icon: React.ElementType;
-    unlocks?: string; // e.g., 'Nuclear Reactor'
-    completed?: boolean;
-}
-
-// Example Data (replace with actual game state)
+// Example Data (replace with actual game state/definitions)
 const availableBuildings: Building[] = [
-  { id: 'colony_hub', name: 'Colony Hub', description: 'Central structure. Upgrade to unlock more buildings.', cost: 100, icon: Factory, level: 1 },
-  { id: 'ore_refinery', name: 'Ore Refinery', description: 'Extracts ore.', cost: 50, icon: Package, energyCost: 5 },
-  { id: 'trade_port', name: 'Trade Port', description: 'Trade ore for resources.', cost: 75, icon: Banknote },
-  { id: 'research_lab', name: 'Research Lab', description: 'Unlocks tech.', cost: 150, icon: Library, energyCost: 10 },
-  { id: 'medical_lab', name: 'Medical Lab', description: 'Improves worker efficiency.', cost: 120, icon: HeartPulse, energyCost: 8 },
-  { id: 'colony_expansion', name: 'Colony Expansion', description: 'Increases population cap.', cost: 200, icon: Users },
-  { id: 'ship_facility', name: 'Ship Facility', description: 'Builds ships.', cost: 250, icon: Ship, energyCost: 15 },
-  { id: 'solar_plant', name: 'Solar Plant', description: 'Basic energy.', cost: 80, icon: Sun },
-  { id: 'nuclear_reactor', name: 'Nuclear Reactor', description: 'Advanced energy.', cost: 500, icon: Atom, requires: 'Research: Nuclear Power' },
-  { id: 'laser_turret', name: 'Laser Turret', description: 'Planetary defense.', cost: 100, icon: Target, energyCost: 20 },
-   { id: 'missile_battery', name: 'Missile Battery', description: 'Long-range defense.', cost: 180, icon: Target, energyCost: 25 },
-   { id: 'shield_generator', name: 'Shield Generator', description: 'Protects the colony.', cost: 300, icon: ShieldCheck, energyCost: 50 },
+  { id: 'colony_hub', name: 'Colony Hub', description: 'Central structure.', cost: { [OreTypeEnum.Iron]: 100 }, icon: Factory, level: 1 },
+  { id: 'ore_refinery', name: 'Ore Refinery', description: 'Extracts ore.', cost: { [OreTypeEnum.Iron]: 50, [OreTypeEnum.Copper]: 25 }, icon: Package, energyCost: 5 },
+  { id: 'trade_port', name: 'Trade Port', description: 'Trade resources.', cost: { [OreTypeEnum.Iron]: 75, [OreTypeEnum.Gold]: 10 }, icon: Banknote },
+  { id: 'research_lab', name: 'Research Lab', description: 'Unlocks tech.', cost: { [OreTypeEnum.Iron]: 150, [OreTypeEnum.Copper]: 50 }, icon: Library, energyCost: 10 },
+  { id: 'medical_lab', name: 'Medical Lab', description: 'Improves efficiency.', cost: { [OreTypeEnum.Iron]: 100, [OreTypeEnum.Copper]: 30 }, icon: HeartPulse, energyCost: 8 },
+  { id: 'colony_expansion', name: 'Colony Expansion', description: 'Increases population cap.', cost: { [OreTypeEnum.Iron]: 200, [OreTypeEnum.Titanium]: 20 }, icon: Users },
+  { id: 'ship_facility', name: 'Ship Facility', description: 'Builds ships.', cost: { [OreTypeEnum.Iron]: 250, [OreTypeEnum.Titanium]: 50 }, icon: Ship, energyCost: 15 },
+  { id: 'solar_plant', name: 'Solar Plant', description: 'Basic energy.', cost: { [OreTypeEnum.Iron]: 80, [OreTypeEnum.Copper]: 20 }, icon: Sun, energyProduction: 20 },
+  { id: 'nuclear_reactor', name: 'Nuclear Reactor', description: 'Advanced energy.', cost: { [OreTypeEnum.Iron]: 400, [OreTypeEnum.Titanium]: 100, [OreTypeEnum.Uranium]: 10 }, icon: Atom, requires: 'Research: Nuclear Power', energyProduction: 100 },
+  { id: 'laser_turret', name: 'Laser Turret', description: 'Planetary defense.', cost: { [OreTypeEnum.Iron]: 100, [OreTypeEnum.Copper]: 40 }, icon: Target, energyCost: 20 },
+   { id: 'missile_battery', name: 'Missile Battery', description: 'Long-range defense.', cost: { [OreTypeEnum.Iron]: 180, [OreTypeEnum.Titanium]: 30 }, icon: Target, energyCost: 25 },
+   { id: 'shield_generator', name: 'Shield Generator', description: 'Protects the colony.', cost: { [OreTypeEnum.Iron]: 300, [OreTypeEnum.Gold]: 50, [OreTypeEnum.Titanium]: 75 }, icon: ShieldCheck, energyCost: 50 },
 ];
 
 const availableShips: ShipType[] = [
-  { id: 'scout', name: 'Scout', description: 'Fast exploration vessel.', cost: 50, icon: Rocket, requires: 'Ship Facility' },
-  { id: 'cargo', name: 'Cargo Ship', description: 'Transports resources.', cost: 80, icon: Warehouse, requires: 'Ship Facility' },
-  { id: 'fighter', name: 'Fighter', description: 'Basic combat ship.', cost: 120, icon: Rocket, requires: 'Ship Facility' },
-  // Add more ships like Cruiser, Science Vessel later
+  { id: 'scout', name: 'Scout', description: 'Fast exploration vessel.', cost: { [OreTypeEnum.Iron]: 30, [OreTypeEnum.Copper]: 10 }, icon: Rocket, requires: 'Ship Facility' },
+  { id: 'cargo', name: 'Cargo Ship', description: 'Transports resources.', cost: { [OreTypeEnum.Iron]: 80, [OreTypeEnum.Titanium]: 15 }, icon: Warehouse, requires: 'Ship Facility' },
+  { id: 'fighter', name: 'Fighter', description: 'Basic combat ship.', cost: { [OreTypeEnum.Iron]: 100, [OreTypeEnum.Copper]: 25, [OreTypeEnum.Titanium]: 10 }, icon: Rocket, requires: 'Ship Facility' },
 ];
 
 const availableResearch: ResearchItem[] = [
-    { id: 'adv_engines', name: 'Advanced Engines', description: 'Increase ship speed.', cost: 100, icon: FlaskConical },
-    { id: 'laser_tech', name: 'Laser Technology', description: 'Improve laser weapons.', cost: 150, icon: FlaskConical },
-    { id: 'nuclear_power', name: 'Nuclear Power', description: 'Unlocks Nuclear Reactors.', cost: 300, icon: FlaskConical, unlocks: 'Nuclear Reactor' },
-    { id: 'shielding', name: 'Advanced Shielding', description: 'Improve shield strength.', cost: 250, icon: FlaskConical },
+    { id: 'adv_engines', name: 'Advanced Engines', description: 'Increase ship speed.', cost: { [OreTypeEnum.Copper]: 50, [OreTypeEnum.Titanium]: 20 }, icon: FlaskConical },
+    { id: 'laser_tech', name: 'Laser Technology', description: 'Improve laser weapons.', cost: { [OreTypeEnum.Iron]: 100, [OreTypeEnum.Gold]: 15 }, icon: FlaskConical },
+    { id: 'nuclear_power', name: 'Nuclear Power', description: 'Unlocks Nuclear Reactors.', cost: { [OreTypeEnum.Titanium]: 150, [OreTypeEnum.Uranium]: 30 }, icon: FlaskConical, unlocks: 'Nuclear Reactor' },
+    { id: 'adv_shielding', name: 'Advanced Shielding', description: 'Improve shield strength.', cost: { [OreTypeEnum.Titanium]: 100, [OreTypeEnum.Gold]: 40 }, icon: FlaskConical },
 ];
+
+// Helper to format resource costs
+const formatCost = (cost: Partial<Record<OreType, number>>): string => {
+    return Object.entries(cost)
+        .map(([ore, amount]) => `${amount} ${ore}`)
+        .join(', ');
+};
+
+// Helper to check if player has enough resources
+const hasEnoughResources = (cost: Partial<Record<OreType, number>>, currentResources: Resources): boolean => {
+    return Object.entries(cost).every(([ore, amount]) => {
+        return (currentResources[ore as OreType] ?? 0) >= amount;
+    });
+};
+
+// Helper to get ore icon
+const getOreIcon = (oreType: OreType) => {
+    switch (oreType) {
+        case OreTypeEnum.Iron: return <Mountain className="w-3 h-3 inline-block mr-1 text-slate-500" />;
+        case OreTypeEnum.Copper: return <Diamond className="w-3 h-3 inline-block mr-1 text-orange-500" />;
+        case OreTypeEnum.Gold: return <Diamond className="w-3 h-3 inline-block mr-1 text-yellow-500" />;
+        case OreTypeEnum.Titanium: return <Mountain className="w-3 h-3 inline-block mr-1 text-gray-400" />;
+        case OreTypeEnum.Uranium: return <Diamond className="w-3 h-3 inline-block mr-1 text-green-500" />;
+        default: return null;
+    }
+};
+
 
 const ControlPanel: React.FC = () => {
   // Placeholder state for resources (replace with actual game state context)
-  const [ore, setOre] = React.useState(1000);
-  const [energyProduction, setEnergyProduction] = React.useState(10);
-  const [energyConsumption, setEnergyConsumption] = React.useState(0);
+  const [resources, setResources] = React.useState<Resources>({
+    [OreTypeEnum.Iron]: 1000,
+    [OreTypeEnum.Copper]: 500,
+    [OreTypeEnum.Gold]: 50,
+    [OreTypeEnum.Titanium]: 20,
+    [OreTypeEnum.Uranium]: 0,
+    Energy: { production: 10, consumption: 0, balance: 10 },
+  });
+
+  // UseEffect to recalculate energy balance when production/consumption changes
+  React.useEffect(() => {
+    setResources(prev => {
+        if (!prev.Energy) return prev;
+        const balance = prev.Energy.production - prev.Energy.consumption;
+        return { ...prev, Energy: { ...prev.Energy, balance } };
+    });
+  }, [resources.Energy?.production, resources.Energy?.consumption]);
+
 
   const handleBuild = (building: Building) => {
-    if (ore >= building.cost) {
-      setOre(ore - building.cost);
-      if(building.energyCost) {
-        setEnergyConsumption(prev => prev + (building.energyCost ?? 0));
-      }
-       if(building.name === 'Solar Plant'){ // Example: Increase production
-            setEnergyProduction(prev => prev + 20);
-        }
-        if(building.name === 'Nuclear Reactor'){
-            setEnergyProduction(prev => prev + 100);
-        }
+    if (hasEnoughResources(building.cost, resources)) {
+      setResources(prev => {
+          const newResources = { ...prev };
+          // Deduct cost
+          Object.entries(building.cost).forEach(([ore, amount]) => {
+              newResources[ore as OreType] = (newResources[ore as OreType] ?? 0) - amount;
+          });
+          // Adjust energy
+          if (prev.Energy) {
+              const newConsumption = prev.Energy.consumption + (building.energyCost ?? 0);
+              const newProduction = prev.Energy.production + (building.energyProduction ?? 0);
+              newResources.Energy = { ...prev.Energy, consumption: newConsumption, production: newProduction };
+          }
+          return newResources;
+      });
       console.log(`Building ${building.name}...`);
       // TODO: Add logic to update game state (place building, start timer, etc.)
     } else {
-      console.log(`Not enough ore to build ${building.name}`);
-      // TODO: Show feedback to the user (e.g., toast notification)
+      console.log(`Not enough resources to build ${building.name}`);
+      // TODO: Show feedback to the user
     }
   };
 
    const handleBuildShip = (ship: ShipType) => {
-    if (ore >= ship.cost) {
-      setOre(ore - ship.cost);
-       // Assume energy cost for ship building process if needed
-      console.log(`Building ${ship.name}...`);
-      // TODO: Add logic to start ship construction
+    if (hasEnoughResources(ship.cost, resources)) {
+        setResources(prev => {
+            const newResources = { ...prev };
+            Object.entries(ship.cost).forEach(([ore, amount]) => {
+                newResources[ore as OreType] = (newResources[ore as OreType] ?? 0) - amount;
+            });
+            // Add energy cost for construction if applicable
+            return newResources;
+        });
+        console.log(`Building ${ship.name}...`);
+        // TODO: Add logic to start ship construction
     } else {
-      console.log(`Not enough ore to build ${ship.name}`);
+      console.log(`Not enough resources to build ${ship.name}`);
+       // TODO: Show feedback
     }
   };
 
    const handleResearch = (research: ResearchItem) => {
-     if (ore >= research.cost && !research.completed) {
-       setOre(ore - research.cost);
+     if (hasEnoughResources(research.cost, resources) && !research.completed) {
+        setResources(prev => {
+            const newResources = { ...prev };
+            Object.entries(research.cost).forEach(([ore, amount]) => {
+                newResources[ore as OreType] = (newResources[ore as OreType] ?? 0) - amount;
+            });
+            return newResources;
+        });
        console.log(`Researching ${research.name}...`);
        // TODO: Update research state, potentially start timer
-       // For now, just mark as completed instantly for UI testing
-       research.completed = true; // Needs proper state management
-       // Force re-render if needed (better with state management library)
-       forceUpdate();
+       // Mark as completed instantly for testing (replace with proper state management)
+       const itemIndex = availableResearch.findIndex(item => item.id === research.id);
+       if (itemIndex > -1) availableResearch[itemIndex].completed = true;
+       forceUpdate(); // Force re-render needed without proper state management
+
      } else if (research.completed) {
          console.log(`${research.name} already researched.`);
-     }
-      else {
-       console.log(`Not enough ore to research ${research.name}`);
+     } else {
+       console.log(`Not enough resources to research ${research.name}`);
+        // TODO: Show feedback
      }
    };
 
@@ -139,14 +171,20 @@ const ControlPanel: React.FC = () => {
         <SidebarGroup>
            <SidebarGroupLabel>Resources</SidebarGroupLabel>
            <SidebarGroupContent className="space-y-1 px-2 text-sm">
-                <div className="flex justify-between"><span>Ore:</span><span>{ore}</span></div>
-                 <div className="flex justify-between">
-                    <span>Energy:</span>
-                    <span className={cn(energyProduction >= energyConsumption ? 'text-[hsl(var(--chart-1))]' : 'text-destructive')}> {/* Use theme color or destructive */}
-                       {energyProduction - energyConsumption} ({energyProduction} / {energyConsumption})
-                    </span>
-                 </div>
-                {/* Add more resources like credits, population etc. */}
+                 {Object.values(OreTypeEnum).map(ore => (
+                      <div className="flex justify-between items-center" key={ore}>
+                         <span>{getOreIcon(ore)}{ore}:</span>
+                         <span>{resources[ore] ?? 0}</span>
+                      </div>
+                 ))}
+                 {resources.Energy && (
+                    <div className="flex justify-between">
+                        <span>Energy:</span>
+                        <span className={cn(resources.Energy.balance >= 0 ? 'text-[hsl(var(--chart-1))]' : 'text-destructive')}>
+                           {resources.Energy.balance} ({resources.Energy.production} / {resources.Energy.consumption})
+                        </span>
+                     </div>
+                 )}
            </SidebarGroupContent>
         </SidebarGroup>
          <SidebarSeparator />
@@ -174,11 +212,14 @@ const ControlPanel: React.FC = () => {
                                     <div className="flex-1 min-w-0">
                                         <p className="text-sm font-medium truncate">{building.name} {building.level && `(Lvl ${building.level})`}</p>
                                         <p className="text-xs text-muted-foreground truncate">{building.description}</p>
-                                        <p className="text-xs text-muted-foreground">Cost: {building.cost} Ore {building.energyCost ? ` | Energy: -${building.energyCost}` : ''}</p>
+                                        <p className="text-xs text-muted-foreground">Cost: {formatCost(building.cost)}
+                                            {building.energyCost ? ` | Energy: -${building.energyCost}` : ''}
+                                            {building.energyProduction ? ` | Energy: +${building.energyProduction}` : ''}
+                                        </p>
                                          {building.requires && <p className="text-xs text-amber-400 truncate">Requires: {building.requires}</p>}
                                     </div>
                                 </div>
-                                <Button size="sm" onClick={() => handleBuild(building)} disabled={ore < building.cost}>
+                                <Button size="sm" onClick={() => handleBuild(building)} disabled={!hasEnoughResources(building.cost, resources)}>
                                      Build
                                  </Button>
                              </CardContent>
@@ -200,11 +241,11 @@ const ControlPanel: React.FC = () => {
                                     <div className="flex-1 min-w-0">
                                         <p className="text-sm font-medium truncate">{ship.name}</p>
                                         <p className="text-xs text-muted-foreground truncate">{ship.description}</p>
-                                        <p className="text-xs text-muted-foreground">Cost: {ship.cost} Ore</p>
+                                        <p className="text-xs text-muted-foreground">Cost: {formatCost(ship.cost)}</p>
                                           {ship.requires && <p className="text-xs text-amber-400 truncate">Requires: {ship.requires}</p>}
                                     </div>
                                 </div>
-                                <Button size="sm" onClick={() => handleBuildShip(ship)} disabled={ore < ship.cost}>
+                                <Button size="sm" onClick={() => handleBuildShip(ship)} disabled={!hasEnoughResources(ship.cost, resources)}>
                                     Build
                                 </Button>
                             </CardContent>
@@ -219,18 +260,18 @@ const ControlPanel: React.FC = () => {
                <SidebarMenu>
                 {availableResearch.map((item) => (
                     <SidebarMenuItem key={item.id}>
-                         <Card className={cn("w-full", item.completed ? "bg-[hsl(var(--chart-1))]/30 border-[hsl(var(--chart-1))]" : "bg-card/50")}> {/* Use theme color */}
+                         <Card className={cn("w-full", item.completed ? "bg-[hsl(var(--chart-1))]/30 border-[hsl(var(--chart-1))]" : "bg-card/50")}>
                             <CardContent className="p-2 flex items-center justify-between gap-2">
                                  <div className="flex items-center gap-2 flex-1 min-w-0">
                                      <item.icon className="w-5 h-5 text-muted-foreground flex-shrink-0" />
                                      <div className="flex-1 min-w-0">
                                          <p className="text-sm font-medium truncate">{item.name}</p>
                                          <p className="text-xs text-muted-foreground truncate">{item.description}</p>
-                                         <p className="text-xs text-muted-foreground">Cost: {item.cost} Ore</p>
+                                         <p className="text-xs text-muted-foreground">Cost: {formatCost(item.cost)}</p>
                                          {item.unlocks && <p className="text-xs text-sky-400 truncate">Unlocks: {item.unlocks}</p>}
                                      </div>
                                  </div>
-                                  <Button size="sm" onClick={() => handleResearch(item)} disabled={ore < item.cost || item.completed}>
+                                  <Button size="sm" onClick={() => handleResearch(item)} disabled={!hasEnoughResources(item.cost, resources) || item.completed}>
                                      {item.completed ? "Done" : "Research"}
                                  </Button>
                             </CardContent>
@@ -249,8 +290,8 @@ const ControlPanel: React.FC = () => {
                 <CardContent className="text-sm space-y-2">
                   <p>Population: 100 / 150</p>
                   <p>Happiness: 85%</p>
-                  <p>Ore Extraction Rate: 50/min</p>
-                   <p>Defenses: Active (3 Laser Turrets, 1 Missile Battery)</p>
+                   {/* Add ore extraction rates per type if applicable */}
+                   <p>Defenses: Active (Status Placeholder)</p>
                   {/* Add more detailed stats */}
                 </CardContent>
               </Card>
@@ -260,7 +301,6 @@ const ControlPanel: React.FC = () => {
        </SidebarContent>
        <SidebarSeparator />
        <SidebarFooter>
-            {/* Placeholder for game time or global actions */}
              <div className="text-xs text-muted-foreground px-2">Game Time: 00:05:32</div>
        </SidebarFooter>
        </>
@@ -268,3 +308,4 @@ const ControlPanel: React.FC = () => {
 };
 
 export default ControlPanel;
+
