@@ -33,7 +33,7 @@ const availableBuildings: Building[] = [
    { id: 'missile_battery', name: 'Missile Battery', category: 'Defense', description: 'Long-range planetary defense.', cost: { [OreTypeEnum.Iron]: 180, [OreTypeEnum.Titanium]: 30 }, icon: Target, energyCost: 25, constructionTime: 18000 },
    { id: 'shield_generator', name: 'Shield Generator', category: 'Defense', description: 'Protects the colony from orbital bombardment.', cost: { [OreTypeEnum.Iron]: 300, [OreTypeEnum.Gold]: 50, [OreTypeEnum.Titanium]: 75 }, icon: ShieldCheck, energyCost: 50, constructionTime: 30000 },
   // Utility
-  { id: 'trade_port', name: 'Trade Port', category: 'Utility', description: 'Allows trade of ore for resources.', cost: { [OreTypeEnum.Iron]: 75, [OreTypeEnum.Gold]: 10 }, icon: Banknote, constructionTime: 8000 },
+  { id: 'trade_port', name: 'Trade Port', category: 'Utility', description: 'Allows trade of ore for resources. Unlocks Cargo Ships.', cost: { [OreTypeEnum.Iron]: 75, [OreTypeEnum.Gold]: 10 }, icon: Banknote, constructionTime: 8000 },
   { id: 'research_lab', name: 'Research Lab', category: 'Utility', description: 'Unlocks tech trees and advanced upgrades.', cost: { [OreTypeEnum.Iron]: 150, [OreTypeEnum.Copper]: 50 }, icon: Library, energyCost: 10, constructionTime: 15000 },
   { id: 'medical_lab', name: 'Medical Lab', category: 'Utility', description: 'Improves worker efficiency and reduces downtime.', cost: { [OreTypeEnum.Iron]: 100, [OreTypeEnum.Copper]: 30 }, icon: HeartPulse, energyCost: 8, constructionTime: 12000 },
   // Shipyard (Could also be its own tab, but keeping it simple for now)
@@ -42,7 +42,7 @@ const availableBuildings: Building[] = [
 
 const availableShips: ShipType[] = [
   { id: 'scout', name: 'Scout', description: 'Fast exploration vessel, reveals nearby sectors.', cost: { [OreTypeEnum.Iron]: 30, [OreTypeEnum.Copper]: 10 }, icon: Rocket, requires: 'Ship Facility' },
-  { id: 'cargo', name: 'Cargo Ship', description: 'Transports resources between colonies or stations.', cost: { [OreTypeEnum.Iron]: 80, [OreTypeEnum.Titanium]: 15 }, icon: Warehouse, requires: 'Ship Facility' },
+  { id: 'cargo', name: 'Cargo Ship', description: 'Transports resources between colonies or stations.', cost: { [OreTypeEnum.Iron]: 80, [OreTypeEnum.Titanium]: 15 }, icon: Warehouse, requires: ['Ship Facility', 'Trade Port'] }, // Updated requirements
   { id: 'fighter', name: 'Fighter', description: 'Basic combat ship for defense and offense.', cost: { [OreTypeEnum.Iron]: 100, [OreTypeEnum.Copper]: 25, [OreTypeEnum.Titanium]: 10 }, icon: Rocket, requires: 'Ship Facility' },
 ];
 
@@ -55,7 +55,7 @@ const availableResearch: ResearchItem[] = [
 
 // Helper to format resource costs with icons
 const formatCostWithIcons = (cost: Partial<Record<OreType, number>>): React.ReactNode => {
-    return Object.entries(cost).map(([ore, amount], index, arr) => (
+    return Object.entries(cost).map(([ore, amount]) => (
         <span key={ore} className="inline-flex items-center mr-2 whitespace-nowrap">
             {getOreIcon(ore as OreType)}
             <span className="ml-0.5">{amount}</span>
@@ -99,6 +99,8 @@ const ControlPanel: React.FC = () => {
   // State to track constructions in progress { buildingId: { startTime, duration } }
   const [constructing, setConstructing] = useState<Record<string, ConstructionProgress>>({});
   const [constructionProgress, setConstructionProgress] = useState<Record<string, number>>({});
+  // State to track built buildings (IDs)
+  const [builtBuildings, setBuiltBuildings] = useState<Set<string>>(new Set(['colony_hub'])); // Start with Colony Hub
 
    // Group buildings by category
    const groupedBuildings = useMemo(() => {
@@ -154,6 +156,9 @@ const ControlPanel: React.FC = () => {
     return () => clearInterval(interval);
   }, [constructing, constructionProgress]); // Add constructionProgress as dependency
 
+  // Hook to force re-render (use sparingly, prefer state management)
+  const [, forceUpdate] = useReducer(x => x + 1, 0);
+
   const handleBuild = (building: Building) => {
     if (!hasEnoughResources(building.cost, resources)) {
       toast({
@@ -205,11 +210,11 @@ const ControlPanel: React.FC = () => {
           const newProduction = prev.Energy.production + (building.energyProduction ?? 0);
           newResources.Energy = { ...prev.Energy, consumption: newConsumption, production: newProduction };
         }
-        // TODO: Add logic to actually add the building to the player's colony state
-        // For now, we just update resources and log completion
-        console.log(`${building.name} construction complete!`);
         return newResources;
       });
+
+       // Add building to the set of built buildings
+       setBuiltBuildings(prev => new Set(prev).add(building.id));
 
        // Remove from constructing state and progress
        setConstructing(prev => {
@@ -235,23 +240,44 @@ const ControlPanel: React.FC = () => {
     }, building.constructionTime); // Use original constructionTime
   };
 
-   const handleBuildShip = (ship: ShipType) => {
-    if (hasEnoughResources(ship.cost, resources)) {
-        setResources(prev => {
-            const newResources = { ...prev };
-            Object.entries(ship.cost).forEach(([ore, amount]) => {
-                newResources[ore as OreType] = (newResources[ore as OreType] ?? 0) - amount;
-            });
-            console.log(`Building ${ship.name}... (State updated)`);
-             toast({ title: "Ship Construction Started", description: `Building ${ship.name}...` });
-            // TODO: Add to shipyard queue, implement build time
-            return newResources;
-        });
+   // Helper to check if building requirements are met
+   const areBuildingRequirementsMet = (requires?: string | string[]): boolean => {
+    if (!requires) return true;
+    const requirements = Array.isArray(requires) ? requires : [requires];
+    return requirements.every(req => {
+        // Simple check for now, assumes format "Building Name" or "Research: Name"
+        if (req.startsWith('Research:')) {
+            // TODO: Check completed research state
+            return true; // Placeholder
+        } else {
+            // Find the building ID by name (less robust, use IDs ideally)
+            const requiredBuilding = availableBuildings.find(b => b.name === req);
+            return requiredBuilding ? builtBuildings.has(requiredBuilding.id) : false;
+        }
+    });
+  };
 
-    } else {
-      console.log(`Not enough resources to build ${ship.name}`);
-       toast({ title: "Insufficient Resources", description: `Cannot build ${ship.name}.`, variant: "destructive" });
+   const handleBuildShip = (ship: ShipType) => {
+    if (!hasEnoughResources(ship.cost, resources)) {
+        toast({ title: "Insufficient Resources", description: `Cannot build ${ship.name}.`, variant: "destructive" });
+        return;
     }
+    if (!areBuildingRequirementsMet(ship.requires)) {
+         toast({ title: "Requirements Not Met", description: `Cannot build ${ship.name}. Check requirements.`, variant: "destructive" });
+         return;
+    }
+
+    setResources(prev => {
+        const newResources = { ...prev };
+        Object.entries(ship.cost).forEach(([ore, amount]) => {
+            newResources[ore as OreType] = (newResources[ore as OreType] ?? 0) - amount;
+        });
+        console.log(`Building ${ship.name}... (State updated)`);
+         toast({ title: "Ship Construction Started", description: `Building ${ship.name}...` });
+        // TODO: Add to shipyard queue, implement build time
+        return newResources;
+    });
+
   };
 
    const handleResearch = (research: ResearchItem) => {
@@ -282,9 +308,6 @@ const ControlPanel: React.FC = () => {
         toast({ title: "Insufficient Resources", description: `Cannot research ${research.name}.`, variant: "destructive" });
      }
    };
-
-    // Hook to force re-render (use sparingly, prefer state management)
-    const [, forceUpdate] = useReducer(x => x + 1, 0);
 
 
   return (
@@ -339,13 +362,17 @@ const ControlPanel: React.FC = () => {
                           <SidebarMenu className="p-0 gap-1">
                               {groupedBuildings[category].map((building) => {
                                   const isConstructing = !!constructing[building.id];
+                                  const isBuilt = builtBuildings.has(building.id); // Check if already built
                                   const progress = constructionProgress[building.id] ?? 0;
-                                  const isDisabled = !hasEnoughResources(building.cost, resources) || isConstructing;
+                                  // Disable if not enough resources, is constructing, or already built (for non-upgradable for now)
+                                  const isDisabled = !hasEnoughResources(building.cost, resources) || isConstructing || isBuilt;
+                                  const requirementsMet = areBuildingRequirementsMet(building.requires); // Check requirements for build button itself
+
                                   return (
                                       <SidebarMenuItem key={building.id} className="p-0">
                                           <Tooltip>
                                               <TooltipTrigger asChild>
-                                                  <Card className="w-full bg-card/50 hover:bg-card/70 transition-colors relative overflow-hidden"> {/* Added relative & overflow-hidden */}
+                                                  <Card className={cn("w-full bg-card/50 hover:bg-card/70 transition-colors relative overflow-hidden", isBuilt && "border-primary/50 bg-primary/10")}>
                                                       {/* Progress Bar Overlay */}
                                                       {isConstructing && (
                                                           <Progress
@@ -370,15 +397,18 @@ const ControlPanel: React.FC = () => {
                                                                   {isConstructing && (
                                                                       <p className="text-xs text-primary animate-pulse">Constructing ({Math.round(progress)}%)...</p>
                                                                   )}
+                                                                   {isBuilt && !isConstructing && (
+                                                                      <p className="text-xs text-primary">Built</p>
+                                                                  )}
                                                               </div>
                                                           </div>
                                                           <Button
                                                               size="sm"
                                                               onClick={() => handleBuild(building)}
-                                                              disabled={isDisabled}
-                                                              className={cn(isDisabled && "opacity-50 cursor-not-allowed")}
+                                                              disabled={isDisabled || !requirementsMet} // Disable if requirements not met either
+                                                              className={cn((isDisabled || !requirementsMet) && "opacity-50 cursor-not-allowed")}
                                                           >
-                                                              {isConstructing ? "Building" : "Build"}
+                                                              {isConstructing ? "Building" : (isBuilt ? "Built" : "Build")}
                                                           </Button>
                                                       </CardContent>
                                                   </Card>
@@ -391,16 +421,20 @@ const ControlPanel: React.FC = () => {
                                                       <p>Build Time: {building.constructionTime / 1000}s</p>
                                                       {building.energyCost && <p>Energy Consumption: {building.energyCost}</p>}
                                                       {building.energyProduction && <p>Energy Production: {building.energyProduction}</p>}
-                                                      {building.requires && <p className="text-amber-400">Requires: {building.requires}</p>}
+                                                      {building.requires && <p className={cn("text-amber-400", !requirementsMet && "text-destructive/80")}>Requires: {Array.isArray(building.requires) ? building.requires.join(', ') : building.requires}</p>}
                                                   </div>
+                                                   {isBuilt && <p className="text-xs text-primary mt-2">Already built.</p>}
                                                   {isConstructing && (
                                                       <div className="mt-2">
                                                           <p className="text-xs text-primary">Construction in progress...</p>
                                                           <Progress value={progress} className="h-1 mt-1" />
                                                       </div>
                                                   )}
-                                                  {!hasEnoughResources(building.cost, resources) && !isConstructing && (
+                                                  {!hasEnoughResources(building.cost, resources) && !isConstructing && !isBuilt && (
                                                     <p className="text-xs text-destructive mt-2">Insufficient resources.</p>
+                                                  )}
+                                                  {!requirementsMet && !isConstructing && !isBuilt && (
+                                                     <p className="text-xs text-destructive mt-2">Requirements not met.</p>
                                                   )}
                                               </TooltipContent>
                                           </Tooltip>
@@ -418,42 +452,50 @@ const ControlPanel: React.FC = () => {
                 {/* Shipyard Tab */}
                 <TabsContent value="shipyard" className="mt-0">
                 <SidebarMenu>
-                    {availableShips.map((ship) => (
-                    <SidebarMenuItem key={ship.id}>
-                        <Tooltip>
-                             <TooltipTrigger asChild>
-                                <Card className="w-full bg-card/50 hover:bg-card/70 transition-colors">
-                                    <CardContent className="p-2 flex items-center justify-between gap-2">
-                                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                                            <ship.icon className="w-5 h-5 text-muted-foreground flex-shrink-0" />
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-medium truncate">{ship.name}</p>
-                                                <div className="text-xs text-muted-foreground truncate flex items-center flex-wrap">
-                                                     <span className="mr-1">Cost:</span> {formatCostWithIcons(ship.cost)}
+                    {availableShips.map((ship) => {
+                         const requirementsMet = areBuildingRequirementsMet(ship.requires);
+                         const enoughResources = hasEnoughResources(ship.cost, resources);
+                         const isDisabled = !requirementsMet || !enoughResources;
+                         return (
+                            <SidebarMenuItem key={ship.id}>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Card className="w-full bg-card/50 hover:bg-card/70 transition-colors">
+                                            <CardContent className="p-2 flex items-center justify-between gap-2">
+                                                <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                    <ship.icon className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-sm font-medium truncate">{ship.name}</p>
+                                                        <div className="text-xs text-muted-foreground truncate flex items-center flex-wrap">
+                                                            <span className="mr-1">Cost:</span> {formatCostWithIcons(ship.cost)}
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                            </div>
+                                                <Button size="sm" onClick={() => handleBuildShip(ship)} disabled={isDisabled}>
+                                                    Build
+                                                </Button>
+                                            </CardContent>
+                                        </Card>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="right" align="start" className="max-w-xs">
+                                        <p className="font-semibold">{ship.name}</p>
+                                        <p className="text-sm text-muted-foreground mb-2">{ship.description}</p>
+                                        <div className="text-sm space-y-1">
+                                            <p>Cost: {formatCostWithIcons(ship.cost)}</p>
+                                            {/* TODO: Add build time for ships */}
+                                             {ship.requires && <p className={cn("text-amber-400", !requirementsMet && "text-destructive/80")}>Requires: {Array.isArray(ship.requires) ? ship.requires.join(', ') : ship.requires}</p>}
                                         </div>
-                                        <Button size="sm" onClick={() => handleBuildShip(ship)} disabled={!hasEnoughResources(ship.cost, resources)}>
-                                            Build
-                                        </Button>
-                                    </CardContent>
-                                </Card>
-                             </TooltipTrigger>
-                             <TooltipContent side="right" align="start" className="max-w-xs">
-                                 <p className="font-semibold">{ship.name}</p>
-                                 <p className="text-sm text-muted-foreground mb-2">{ship.description}</p>
-                                 <div className="text-sm space-y-1">
-                                      <p>Cost: {formatCostWithIcons(ship.cost)}</p>
-                                      {/* TODO: Add build time for ships */}
-                                      {ship.requires && <p className="text-amber-400">Requires: {ship.requires}</p>}
-                                 </div>
-                                  {!hasEnoughResources(ship.cost, resources) && (
-                                    <p className="text-xs text-destructive mt-2">Insufficient resources.</p>
-                                  )}
-                             </TooltipContent>
-                        </Tooltip>
-                    </SidebarMenuItem>
-                    ))}
+                                        {!enoughResources && (
+                                            <p className="text-xs text-destructive mt-2">Insufficient resources.</p>
+                                        )}
+                                        {!requirementsMet && (
+                                            <p className="text-xs text-destructive mt-2">Requirements not met.</p>
+                                        )}
+                                    </TooltipContent>
+                                </Tooltip>
+                            </SidebarMenuItem>
+                         )
+                    })}
                 </SidebarMenu>
                 </TabsContent>
 
@@ -512,6 +554,13 @@ const ControlPanel: React.FC = () => {
                     <p>Ore Extraction Rate: (Details TBD)</p>
                     <p>Defenses: Active (Placeholder)</p>
                     {/* Add more detailed stats: buildings list, ships docked, etc. */}
+                     <h5 className="font-semibold pt-2 border-t border-border/50 mt-2">Built Structures</h5>
+                     <ul className="list-disc list-inside text-xs">
+                          {[...builtBuildings].map(id => {
+                              const building = availableBuildings.find(b => b.id === id);
+                              return building ? <li key={id}>{building.name}</li> : null;
+                          })}
+                     </ul>
                     </CardContent>
                 </Card>
                 </TabsContent>

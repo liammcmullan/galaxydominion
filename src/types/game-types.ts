@@ -52,7 +52,7 @@ export interface Building {
   level?: number;
   energyCost?: number;
   energyProduction?: number;
-  requires?: string; // Research or other building requirement
+  requires?: string | string[]; // Research or other building requirement (can be single or multiple)
   constructionTime: number; // Time to build in milliseconds
 }
 
@@ -62,7 +62,7 @@ export interface ShipType {
   description: string;
   cost: Partial<Record<OreType, number>>; // Cost can be multiple ore types
   icon: React.ElementType;
-  requires?: string; // e.g., Ship Construction Facility Level 2
+  requires?: string | string[]; // Building name(s) or research ID(s) required
   // Add stats like speed, cargo capacity, attack, defense later
 }
 
@@ -81,3 +81,4 @@ export interface ConstructionProgress {
     startTime: number;
     duration: number;
 }
+
