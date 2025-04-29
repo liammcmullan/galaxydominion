@@ -62,7 +62,7 @@ export interface ShipType {
   description: string;
   cost: Partial<Record<OreType, number>>; // Cost can be multiple ore types
   icon: React.ElementType;
-  requires?: string | string[]; // Building name(s) or research ID(s) required
+  requires?: string | string[]; // Specific building name(s) or research ID(s) required (e.g., 'Trade Port')
   // Add stats like speed, cargo capacity, attack, defense later
 }
 

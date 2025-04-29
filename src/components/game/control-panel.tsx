@@ -41,9 +41,9 @@ const availableBuildings: Building[] = [
 ];
 
 const availableShips: ShipType[] = [
-  { id: 'scout', name: 'Scout', description: 'Fast exploration vessel, reveals nearby sectors.', cost: { [OreTypeEnum.Iron]: 30, [OreTypeEnum.Copper]: 10 }, icon: Rocket, requires: 'Ship Facility' },
-  { id: 'cargo', name: 'Cargo Ship', description: 'Transports resources between colonies or stations.', cost: { [OreTypeEnum.Iron]: 80, [OreTypeEnum.Titanium]: 15 }, icon: Warehouse, requires: ['Ship Facility', 'Trade Port'] }, // Updated requirements
-  { id: 'fighter', name: 'Fighter', description: 'Basic combat ship for defense and offense.', cost: { [OreTypeEnum.Iron]: 100, [OreTypeEnum.Copper]: 25, [OreTypeEnum.Titanium]: 10 }, icon: Rocket, requires: 'Ship Facility' },
+  { id: 'scout', name: 'Scout', description: 'Fast exploration vessel, reveals nearby sectors.', cost: { [OreTypeEnum.Iron]: 30, [OreTypeEnum.Copper]: 10 }, icon: Rocket },
+  { id: 'cargo', name: 'Cargo Ship', description: 'Transports resources between colonies or stations.', cost: { [OreTypeEnum.Iron]: 80, [OreTypeEnum.Titanium]: 15 }, icon: Warehouse, requires: 'Trade Port' }, // Requires Trade Port
+  { id: 'fighter', name: 'Fighter', description: 'Basic combat ship for defense and offense.', cost: { [OreTypeEnum.Iron]: 100, [OreTypeEnum.Copper]: 25, [OreTypeEnum.Titanium]: 10 }, icon: Rocket },
 ];
 
 const availableResearch: ResearchItem[] = [
@@ -99,8 +99,8 @@ const ControlPanel: React.FC = () => {
   // State to track constructions in progress { buildingId: { startTime, duration } }
   const [constructing, setConstructing] = useState<Record<string, ConstructionProgress>>({});
   const [constructionProgress, setConstructionProgress] = useState<Record<string, number>>({});
-  // State to track built buildings (IDs)
-  const [builtBuildings, setBuiltBuildings] = useState<Set<string>>(new Set(['colony_hub'])); // Start with Colony Hub
+  // State to track built buildings (IDs) - Initialize with Colony Hub
+  const [builtBuildings, setBuiltBuildings] = useState<Set<string>>(new Set(['colony_hub']));
 
    // Group buildings by category
    const groupedBuildings = useMemo(() => {
@@ -159,6 +159,24 @@ const ControlPanel: React.FC = () => {
   // Hook to force re-render (use sparingly, prefer state management)
   const [, forceUpdate] = useReducer(x => x + 1, 0);
 
+  // Helper to check if building requirements are met (also used for ships)
+   const areRequirementsMet = useCallback((requires?: string | string[]): boolean => {
+    if (!requires) return true;
+    const requirements = Array.isArray(requires) ? requires : [requires];
+    return requirements.every(req => {
+        // Simple check for now, assumes format "Building Name" or "Research: Name"
+        if (req.startsWith('Research:')) {
+            // TODO: Check completed research state
+            console.warn("Research requirement check not implemented yet for:", req);
+            return true; // Placeholder
+        } else {
+            // Find the building ID by name (less robust, use IDs ideally)
+            const requiredBuilding = availableBuildings.find(b => b.name === req);
+            return requiredBuilding ? builtBuildings.has(requiredBuilding.id) : false;
+        }
+    });
+  }, [builtBuildings]); // Depends on builtBuildings state
+
   const handleBuild = (building: Building) => {
     if (!hasEnoughResources(building.cost, resources)) {
       toast({
@@ -174,6 +192,10 @@ const ControlPanel: React.FC = () => {
             title: "Already Constructing",
             description: `${building.name} is already under construction.`,
         });
+        return;
+    }
+     if (!areRequirementsMet(building.requires)) {
+        toast({ title: "Requirements Not Met", description: `Cannot build ${building.name}. Check requirements.`, variant: "destructive" });
         return;
     }
 
@@ -240,29 +262,19 @@ const ControlPanel: React.FC = () => {
     }, building.constructionTime); // Use original constructionTime
   };
 
-   // Helper to check if building requirements are met
-   const areBuildingRequirementsMet = (requires?: string | string[]): boolean => {
-    if (!requires) return true;
-    const requirements = Array.isArray(requires) ? requires : [requires];
-    return requirements.every(req => {
-        // Simple check for now, assumes format "Building Name" or "Research: Name"
-        if (req.startsWith('Research:')) {
-            // TODO: Check completed research state
-            return true; // Placeholder
-        } else {
-            // Find the building ID by name (less robust, use IDs ideally)
-            const requiredBuilding = availableBuildings.find(b => b.name === req);
-            return requiredBuilding ? builtBuildings.has(requiredBuilding.id) : false;
-        }
-    });
-  };
+  const handleBuildShip = (ship: ShipType) => {
+    // Check common ship requirement first: Ship Facility
+    if (!builtBuildings.has('ship_facility')) {
+      toast({ title: "Ship Facility Required", description: `Cannot build ${ship.name}. Build a Ship Facility first.`, variant: "destructive" });
+      return;
+    }
 
-   const handleBuildShip = (ship: ShipType) => {
     if (!hasEnoughResources(ship.cost, resources)) {
         toast({ title: "Insufficient Resources", description: `Cannot build ${ship.name}.`, variant: "destructive" });
         return;
     }
-    if (!areBuildingRequirementsMet(ship.requires)) {
+    // Check specific ship requirements (e.g., Trade Port for Cargo Ship)
+    if (!areRequirementsMet(ship.requires)) {
          toast({ title: "Requirements Not Met", description: `Cannot build ${ship.name}. Check requirements.`, variant: "destructive" });
          return;
     }
@@ -281,6 +293,12 @@ const ControlPanel: React.FC = () => {
   };
 
    const handleResearch = (research: ResearchItem) => {
+     // Check if Research Lab exists
+     if (!builtBuildings.has('research_lab')) {
+         toast({ title: "Research Lab Required", description: `Cannot research ${research.name}. Build a Research Lab first.`, variant: "destructive" });
+         return;
+     }
+
      if (hasEnoughResources(research.cost, resources) && !research.completed) {
         setResources(prev => {
             const newResources = { ...prev };
@@ -364,9 +382,9 @@ const ControlPanel: React.FC = () => {
                                   const isConstructing = !!constructing[building.id];
                                   const isBuilt = builtBuildings.has(building.id); // Check if already built
                                   const progress = constructionProgress[building.id] ?? 0;
-                                  // Disable if not enough resources, is constructing, or already built (for non-upgradable for now)
-                                  const isDisabled = !hasEnoughResources(building.cost, resources) || isConstructing || isBuilt;
-                                  const requirementsMet = areBuildingRequirementsMet(building.requires); // Check requirements for build button itself
+                                  const requirementsMet = areRequirementsMet(building.requires); // Check requirements for build button itself
+                                  // Disable if not enough resources, is constructing, already built (for non-upgradable for now), or requirements not met
+                                  const isDisabled = !hasEnoughResources(building.cost, resources) || isConstructing || isBuilt || !requirementsMet;
 
                                   return (
                                       <SidebarMenuItem key={building.id} className="p-0">
@@ -405,8 +423,8 @@ const ControlPanel: React.FC = () => {
                                                           <Button
                                                               size="sm"
                                                               onClick={() => handleBuild(building)}
-                                                              disabled={isDisabled || !requirementsMet} // Disable if requirements not met either
-                                                              className={cn((isDisabled || !requirementsMet) && "opacity-50 cursor-not-allowed")}
+                                                              disabled={isDisabled}
+                                                              className={cn(isDisabled && "opacity-50 cursor-not-allowed")}
                                                           >
                                                               {isConstructing ? "Building" : (isBuilt ? "Built" : "Build")}
                                                           </Button>
@@ -451,11 +469,23 @@ const ControlPanel: React.FC = () => {
 
                 {/* Shipyard Tab */}
                 <TabsContent value="shipyard" className="mt-0">
-                <SidebarMenu>
+                 <SidebarMenu>
+                    {!builtBuildings.has('ship_facility') && (
+                         <Card className="w-full bg-card/50 border-dashed border-amber-500">
+                            <CardContent className="p-3 text-center text-sm text-muted-foreground">
+                                Build a <span className="font-semibold text-foreground">Ship Facility</span> to construct ships.
+                            </CardContent>
+                        </Card>
+                    )}
                     {availableShips.map((ship) => {
-                         const requirementsMet = areBuildingRequirementsMet(ship.requires);
+                         const specificRequirementsMet = areRequirementsMet(ship.requires); // Check specific reqs like Trade Port
+                         const hasShipFacility = builtBuildings.has('ship_facility');
                          const enoughResources = hasEnoughResources(ship.cost, resources);
-                         const isDisabled = !requirementsMet || !enoughResources;
+                         // Disable if Ship Facility isn't built OR specific reqs not met OR not enough resources
+                         const isDisabled = !hasShipFacility || !specificRequirementsMet || !enoughResources;
+                         const requirementsText = ['Ship Facility', ...(Array.isArray(ship.requires) ? ship.requires : (ship.requires ? [ship.requires] : []))].join(', ');
+
+
                          return (
                             <SidebarMenuItem key={ship.id}>
                                 <Tooltip>
@@ -483,14 +513,17 @@ const ControlPanel: React.FC = () => {
                                         <div className="text-sm space-y-1">
                                             <p>Cost: {formatCostWithIcons(ship.cost)}</p>
                                             {/* TODO: Add build time for ships */}
-                                             {ship.requires && <p className={cn("text-amber-400", !requirementsMet && "text-destructive/80")}>Requires: {Array.isArray(ship.requires) ? ship.requires.join(', ') : ship.requires}</p>}
+                                             <p className={cn("text-amber-400", (!hasShipFacility || !specificRequirementsMet) && "text-destructive/80")}>Requires: {requirementsText}</p>
                                         </div>
                                         {!enoughResources && (
                                             <p className="text-xs text-destructive mt-2">Insufficient resources.</p>
                                         )}
-                                        {!requirementsMet && (
-                                            <p className="text-xs text-destructive mt-2">Requirements not met.</p>
+                                        {!hasShipFacility && (
+                                            <p className="text-xs text-destructive mt-2">Requires Ship Facility.</p>
                                         )}
+                                         {!specificRequirementsMet && hasShipFacility && ship.requires && ( // Show specific unmet reqs only if facility exists
+                                             <p className="text-xs text-destructive mt-2">Requires: {Array.isArray(ship.requires) ? ship.requires.join(', ') : ship.requires}.</p>
+                                         )}
                                     </TooltipContent>
                                 </Tooltip>
                             </SidebarMenuItem>
@@ -501,44 +534,58 @@ const ControlPanel: React.FC = () => {
 
                 {/* Research Tab */}
                 <TabsContent value="research" className="mt-0">
-                <SidebarMenu>
-                    {availableResearch.map((item) => (
-                    <SidebarMenuItem key={item.id}>
-                         <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Card className={cn("w-full hover:bg-card/70 transition-colors", item.completed ? "bg-[hsl(var(--chart-1))]/30 border-[hsl(var(--chart-1))]" : "bg-card/50")}>
-                                    <CardContent className="p-2 flex items-center justify-between gap-2">
-                                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                                            <item.icon className="w-5 h-5 text-muted-foreground flex-shrink-0" />
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-medium truncate">{item.name}</p>
-                                                <div className="text-xs text-muted-foreground truncate flex items-center flex-wrap">
-                                                    <span className="mr-1">Cost:</span> {formatCostWithIcons(item.cost)}
+                  <SidebarMenu>
+                    {!builtBuildings.has('research_lab') && (
+                         <Card className="w-full bg-card/50 border-dashed border-sky-500">
+                            <CardContent className="p-3 text-center text-sm text-muted-foreground">
+                                Build a <span className="font-semibold text-foreground">Research Lab</span> to start research.
+                            </CardContent>
+                        </Card>
+                    )}
+                    {availableResearch.map((item) => {
+                        const hasLab = builtBuildings.has('research_lab');
+                        const enoughResources = hasEnoughResources(item.cost, resources);
+                        const isDisabled = !hasLab || !enoughResources || item.completed;
+
+                        return (
+                            <SidebarMenuItem key={item.id}>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Card className={cn("w-full hover:bg-card/70 transition-colors", item.completed ? "bg-[hsl(var(--chart-1))]/30 border-[hsl(var(--chart-1))]" : "bg-card/50")}>
+                                            <CardContent className="p-2 flex items-center justify-between gap-2">
+                                                <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                    <item.icon className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-sm font-medium truncate">{item.name}</p>
+                                                        <div className="text-xs text-muted-foreground truncate flex items-center flex-wrap">
+                                                            <span className="mr-1">Cost:</span> {formatCostWithIcons(item.cost)}
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                            </div>
+                                                <Button size="sm" onClick={() => handleResearch(item)} disabled={isDisabled}>
+                                                    {item.completed ? "Done" : "Research"}
+                                                </Button>
+                                            </CardContent>
+                                        </Card>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="right" align="start" className="max-w-xs">
+                                        <p className="font-semibold">{item.name}</p>
+                                        <p className="text-sm text-muted-foreground mb-2">{item.description}</p>
+                                        <div className="text-sm space-y-1">
+                                            <p>Cost: {formatCostWithIcons(item.cost)}</p>
+                                            {/* TODO: Add research time */}
+                                            {item.unlocks && <p className="text-sky-400">Unlocks: {item.unlocks}</p>}
                                         </div>
-                                        <Button size="sm" onClick={() => handleResearch(item)} disabled={!hasEnoughResources(item.cost, resources) || item.completed}>
-                                            {item.completed ? "Done" : "Research"}
-                                        </Button>
-                                    </CardContent>
-                                </Card>
-                            </TooltipTrigger>
-                             <TooltipContent side="right" align="start" className="max-w-xs">
-                                  <p className="font-semibold">{item.name}</p>
-                                  <p className="text-sm text-muted-foreground mb-2">{item.description}</p>
-                                   <div className="text-sm space-y-1">
-                                      <p>Cost: {formatCostWithIcons(item.cost)}</p>
-                                      {/* TODO: Add research time */}
-                                      {item.unlocks && <p className="text-sky-400">Unlocks: {item.unlocks}</p>}
-                                   </div>
-                                   {item.completed && <p className="text-xs text-[hsl(var(--chart-1))] mt-2">Already Researched</p>}
-                                   {!hasEnoughResources(item.cost, resources) && !item.completed && (
-                                     <p className="text-xs text-destructive mt-2">Insufficient resources.</p>
-                                   )}
-                             </TooltipContent>
-                        </Tooltip>
-                    </SidebarMenuItem>
-                    ))}
+                                        {!hasLab && <p className="text-xs text-destructive mt-2">Requires Research Lab.</p>}
+                                        {item.completed && <p className="text-xs text-[hsl(var(--chart-1))] mt-2">Already Researched</p>}
+                                        {hasLab && !enoughResources && !item.completed && (
+                                            <p className="text-xs text-destructive mt-2">Insufficient resources.</p>
+                                        )}
+                                    </TooltipContent>
+                                </Tooltip>
+                            </SidebarMenuItem>
+                        );
+                    })}
                 </SidebarMenu>
                 </TabsContent>
 
@@ -577,3 +624,4 @@ const ControlPanel: React.FC = () => {
 };
 
 export default ControlPanel;
+
