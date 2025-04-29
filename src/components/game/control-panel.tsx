@@ -13,56 +13,99 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { cn } from '@/lib/utils';
 import { useToast } from "@/hooks/use-toast"; // Import useToast
 import type { Building, ShipType, ResearchItem, Resources, OreType, ConstructionProgress, BuildingCategory } from '@/types/game-types';
-import { OreType as OreTypeEnum } from '@/types/game-types';
+import { OreType as OreTypeEnum, getOreRefineryDescription } from '@/types/game-types'; // Import enum and description function
 
 // Define Building Categories
 const buildingCategories: BuildingCategory[] = ['Core', 'Production', 'Power', 'Defense', 'Utility', 'Shipyard'];
 
-// Example Data (replace with actual game state/definitions)
-// Add default level 1 to buildings without an explicit level
+// --- Building Definitions ---
+// Use baseCost, baseConstructionTime, costMultiplier, timeMultiplier etc. as defined in types
 const availableBuildings: Building[] = [
   // Core
-  { id: 'colony_hub', name: 'Colony Hub', category: 'Core', description: 'Central structure. Upgrading allows more buildings.', cost: { [OreTypeEnum.Iron]: 100 }, icon: Factory, level: 1, constructionTime: 10000 }, // 10 seconds
-  { id: 'colony_expansion', name: 'Colony Expansion', category: 'Core', description: 'Increases population cap and worker allocation.', cost: { [OreTypeEnum.Iron]: 200, [OreTypeEnum.Titanium]: 20 }, icon: Users, level: 1, constructionTime: 20000 },
-  // Production
-  { id: 'ore_refinery', name: 'Ore Refinery', category: 'Production', description: 'Extracts ore from the planet.', cost: { [OreTypeEnum.Iron]: 50, [OreTypeEnum.Copper]: 25 }, icon: Package, level: 1, energyCost: 5, constructionTime: 5000 }, // 5 seconds
+  { id: 'colony_hub', name: 'Colony Hub', category: 'Core', description: 'Central structure. Upgrading allows more buildings.', baseCost: { [OreTypeEnum.Iron]: 100 }, icon: Factory, level: 1, baseConstructionTime: 10000, maxLevel: 5, costMultiplier: 1.8, timeMultiplier: 1.6 }, // 10 seconds base
+  { id: 'colony_expansion', name: 'Colony Expansion', category: 'Core', description: 'Increases population cap and worker allocation.', baseCost: { [OreTypeEnum.Iron]: 200, [OreTypeEnum.Titanium]: 20 }, icon: Users, level: 1, baseConstructionTime: 20000, maxLevel: 3, costMultiplier: 2.0, timeMultiplier: 1.8 },
+
+  // Production (Specific Refineries)
+  { id: 'iron_refinery', name: 'Iron Refinery', category: 'Production', description: getOreRefineryDescription(OreTypeEnum.Iron), oreTarget: OreTypeEnum.Iron, baseCost: { [OreTypeEnum.Iron]: 50, [OreTypeEnum.Copper]: 10 }, icon: Package, level: 1, baseEnergyCost: 5, baseConstructionTime: 6000, maxLevel: 5, costMultiplier: 1.5, timeMultiplier: 1.4 },
+  { id: 'copper_refinery', name: 'Copper Refinery', category: 'Production', description: getOreRefineryDescription(OreTypeEnum.Copper), oreTarget: OreTypeEnum.Copper, baseCost: { [OreTypeEnum.Iron]: 60, [OreTypeEnum.Copper]: 25 }, icon: Package, level: 1, baseEnergyCost: 6, baseConstructionTime: 7000, maxLevel: 5, costMultiplier: 1.6, timeMultiplier: 1.4 },
+  { id: 'gold_refinery', name: 'Gold Refinery', category: 'Production', description: getOreRefineryDescription(OreTypeEnum.Gold), oreTarget: OreTypeEnum.Gold, baseCost: { [OreTypeEnum.Iron]: 100, [OreTypeEnum.Copper]: 40, [OreTypeEnum.Gold]: 5 }, icon: Package, level: 1, baseEnergyCost: 8, baseConstructionTime: 12000, maxLevel: 5, costMultiplier: 1.8, timeMultiplier: 1.5 },
+  { id: 'titanium_refinery', name: 'Titanium Refinery', category: 'Production', description: getOreRefineryDescription(OreTypeEnum.Titanium), oreTarget: OreTypeEnum.Titanium, baseCost: { [OreTypeEnum.Iron]: 150, [OreTypeEnum.Titanium]: 30 }, icon: Package, level: 1, baseEnergyCost: 10, baseConstructionTime: 15000, maxLevel: 5, costMultiplier: 1.7, timeMultiplier: 1.5 },
+  { id: 'uranium_refinery', name: 'Uranium Refinery', category: 'Production', description: getOreRefineryDescription(OreTypeEnum.Uranium), oreTarget: OreTypeEnum.Uranium, baseCost: { [OreTypeEnum.Titanium]: 100, [OreTypeEnum.Uranium]: 10 }, icon: Package, level: 1, baseEnergyCost: 12, requires: 'Research: Nuclear Power', baseConstructionTime: 25000, maxLevel: 5, costMultiplier: 2.0, timeMultiplier: 1.6 },
+
   // Power
-  { id: 'solar_plant', name: 'Solar Plant', category: 'Power', description: 'Low output, cheap, low maintenance.', cost: { [OreTypeEnum.Iron]: 80, [OreTypeEnum.Copper]: 20 }, icon: Sun, level: 1, energyProduction: 20, constructionTime: 7000 },
-  { id: 'nuclear_reactor', name: 'Nuclear Reactor', category: 'Power', description: 'High output, expensive, potential risks.', cost: { [OreTypeEnum.Iron]: 400, [OreTypeEnum.Titanium]: 100, [OreTypeEnum.Uranium]: 10 }, icon: Atom, level: 1, requires: 'Research: Nuclear Power', energyProduction: 100, constructionTime: 45000 },
+  { id: 'solar_plant', name: 'Solar Plant', category: 'Power', description: 'Low output, cheap, low maintenance.', baseCost: { [OreTypeEnum.Iron]: 80, [OreTypeEnum.Copper]: 20 }, icon: Sun, level: 1, baseEnergyProduction: 20, baseConstructionTime: 7000, maxLevel: 5, costMultiplier: 1.4, timeMultiplier: 1.3 },
+  { id: 'nuclear_reactor', name: 'Nuclear Reactor', category: 'Power', description: 'High output, expensive, potential risks.', baseCost: { [OreTypeEnum.Iron]: 400, [OreTypeEnum.Titanium]: 100, [OreTypeEnum.Uranium]: 10 }, icon: Atom, level: 1, requires: 'Research: Nuclear Power', baseEnergyProduction: 100, baseConstructionTime: 45000, maxLevel: 3, costMultiplier: 2.5, timeMultiplier: 2.0 },
+
   // Defense
-  { id: 'laser_turret', name: 'Laser Turret', category: 'Defense', description: 'Basic planetary defense.', cost: { [OreTypeEnum.Iron]: 100, [OreTypeEnum.Copper]: 40 }, icon: Target, level: 1, energyCost: 20, constructionTime: 9000 },
-   { id: 'missile_battery', name: 'Missile Battery', category: 'Defense', description: 'Long-range planetary defense.', cost: { [OreTypeEnum.Iron]: 180, [OreTypeEnum.Titanium]: 30 }, icon: Target, level: 1, energyCost: 25, constructionTime: 18000 },
-   { id: 'shield_generator', name: 'Shield Generator', category: 'Defense', description: 'Protects the colony from orbital bombardment.', cost: { [OreTypeEnum.Iron]: 300, [OreTypeEnum.Gold]: 50, [OreTypeEnum.Titanium]: 75 }, icon: ShieldCheck, level: 1, energyCost: 50, constructionTime: 30000 },
+  { id: 'laser_turret', name: 'Laser Turret', category: 'Defense', description: 'Basic planetary defense.', baseCost: { [OreTypeEnum.Iron]: 100, [OreTypeEnum.Copper]: 40 }, icon: Target, level: 1, baseEnergyCost: 20, baseConstructionTime: 9000, maxLevel: 5, costMultiplier: 1.6, timeMultiplier: 1.4 },
+  { id: 'missile_battery', name: 'Missile Battery', category: 'Defense', description: 'Long-range planetary defense.', baseCost: { [OreTypeEnum.Iron]: 180, [OreTypeEnum.Titanium]: 30 }, icon: Target, level: 1, baseEnergyCost: 25, baseConstructionTime: 18000, maxLevel: 5, costMultiplier: 1.7, timeMultiplier: 1.5 },
+  { id: 'shield_generator', name: 'Shield Generator', category: 'Defense', description: 'Protects the colony from orbital bombardment.', baseCost: { [OreTypeEnum.Iron]: 300, [OreTypeEnum.Gold]: 50, [OreTypeEnum.Titanium]: 75 }, icon: ShieldCheck, level: 1, baseEnergyCost: 50, baseConstructionTime: 30000, maxLevel: 3, costMultiplier: 2.2, timeMultiplier: 1.8 },
+
   // Utility
-  { id: 'trade_port', name: 'Trade Port', category: 'Utility', description: 'Allows trade of ore for resources. Unlocks Cargo Ships.', cost: { [OreTypeEnum.Iron]: 75, [OreTypeEnum.Gold]: 10 }, icon: Banknote, level: 1, constructionTime: 8000 },
-  { id: 'research_lab', name: 'Research Lab', category: 'Utility', description: 'Unlocks tech trees and advanced upgrades.', cost: { [OreTypeEnum.Iron]: 150, [OreTypeEnum.Copper]: 50 }, icon: Library, level: 1, energyCost: 10, constructionTime: 15000 },
-  { id: 'medical_lab', name: 'Medical Lab', category: 'Utility', description: 'Improves worker efficiency and reduces downtime.', cost: { [OreTypeEnum.Iron]: 100, [OreTypeEnum.Copper]: 30 }, icon: HeartPulse, level: 1, energyCost: 8, constructionTime: 12000 },
-  // Shipyard (Could also be its own tab, but keeping it simple for now)
-  { id: 'ship_facility', name: 'Ship Facility', category: 'Shipyard', description: 'Builds and upgrades ships.', cost: { [OreTypeEnum.Iron]: 250, [OreTypeEnum.Titanium]: 50 }, icon: Ship, level: 1, energyCost: 15, constructionTime: 25000 },
+  { id: 'trade_port', name: 'Trade Port', category: 'Utility', description: 'Allows trade of ore for resources. Unlocks Cargo Ships.', baseCost: { [OreTypeEnum.Iron]: 75, [OreTypeEnum.Gold]: 10 }, icon: Banknote, level: 1, baseConstructionTime: 8000 }, // Assuming no upgrades for now
+  { id: 'research_lab', name: 'Research Lab', category: 'Utility', description: 'Unlocks tech trees and advanced upgrades. Upgrading speeds up research.', baseCost: { [OreTypeEnum.Iron]: 150, [OreTypeEnum.Copper]: 50 }, icon: Library, level: 1, baseEnergyCost: 10, baseConstructionTime: 15000, maxLevel: 3, costMultiplier: 1.9, timeMultiplier: 1.7 },
+  { id: 'medical_lab', name: 'Medical Lab', category: 'Utility', description: 'Improves worker efficiency and reduces downtime.', baseCost: { [OreTypeEnum.Iron]: 100, [OreTypeEnum.Copper]: 30 }, icon: HeartPulse, level: 1, baseEnergyCost: 8, baseConstructionTime: 12000, maxLevel: 3, costMultiplier: 1.7, timeMultiplier: 1.5 },
+
+  // Shipyard
+  { id: 'ship_facility', name: 'Ship Facility', category: 'Shipyard', description: 'Builds and upgrades ships. Upgrading increases build speed and unlocks advanced ships.', baseCost: { [OreTypeEnum.Iron]: 250, [OreTypeEnum.Titanium]: 50 }, icon: Ship, level: 1, baseEnergyCost: 15, baseConstructionTime: 25000, maxLevel: 3, costMultiplier: 2.0, timeMultiplier: 1.8 },
 ];
 
+
+// --- Ship Definitions ---
 const availableShips: ShipType[] = [
   { id: 'scout', name: 'Scout', description: 'Fast exploration vessel, reveals nearby sectors.', cost: { [OreTypeEnum.Iron]: 30, [OreTypeEnum.Copper]: 10 }, icon: Rocket },
   { id: 'cargo', name: 'Cargo Ship', description: 'Transports resources between colonies or stations.', cost: { [OreTypeEnum.Iron]: 80, [OreTypeEnum.Titanium]: 15 }, icon: Warehouse, requires: 'Trade Port' }, // Requires Trade Port
   { id: 'fighter', name: 'Fighter', description: 'Basic combat ship for defense and offense.', cost: { [OreTypeEnum.Iron]: 100, [OreTypeEnum.Copper]: 25, [OreTypeEnum.Titanium]: 10 }, icon: Rocket },
 ];
 
+// --- Research Definitions ---
 const availableResearch: ResearchItem[] = [
-    { id: 'adv_engines', name: 'Advanced Engines', description: 'Increase ship speed and travel range.', cost: { [OreTypeEnum.Copper]: 50, [OreTypeEnum.Titanium]: 20 }, icon: FlaskConical },
-    { id: 'laser_tech', name: 'Laser Technology', description: 'Improve laser weapon damage and efficiency.', cost: { [OreTypeEnum.Iron]: 100, [OreTypeEnum.Gold]: 15 }, icon: FlaskConical },
-    { id: 'nuclear_power', name: 'Nuclear Power', description: 'Unlocks Nuclear Reactors for high energy output.', cost: { [OreTypeEnum.Titanium]: 150, [OreTypeEnum.Uranium]: 30 }, icon: FlaskConical, unlocks: 'Nuclear Reactor' },
-    { id: 'adv_shielding', name: 'Advanced Shielding', description: 'Improve ship and planetary shield strength.', cost: { [OreTypeEnum.Titanium]: 100, [OreTypeEnum.Gold]: 40 }, icon: FlaskConical },
+    { id: 'adv_engines', name: 'Advanced Engines', description: 'Increase ship speed and travel range.', baseCost: { [OreTypeEnum.Copper]: 50, [OreTypeEnum.Titanium]: 20 }, icon: FlaskConical, baseResearchTime: 30000, maxLevel: 3, costMultiplier: 1.8, timeMultiplier: 1.6 },
+    { id: 'laser_tech', name: 'Laser Technology', description: 'Improve laser weapon damage and efficiency.', baseCost: { [OreTypeEnum.Iron]: 100, [OreTypeEnum.Gold]: 15 }, icon: FlaskConical, baseResearchTime: 45000, maxLevel: 5, costMultiplier: 1.7, timeMultiplier: 1.5 },
+    { id: 'nuclear_power', name: 'Nuclear Power', description: 'Unlocks Nuclear Reactors and Uranium Refineries.', baseCost: { [OreTypeEnum.Titanium]: 150, [OreTypeEnum.Uranium]: 30 }, icon: FlaskConical, unlocks: 'Nuclear Reactor, Uranium Refinery', baseResearchTime: 60000, maxLevel: 1 }, // Single level unlock
+    { id: 'adv_shielding', name: 'Advanced Shielding', description: 'Improve ship and planetary shield strength.', baseCost: { [OreTypeEnum.Titanium]: 100, [OreTypeEnum.Gold]: 40 }, icon: FlaskConical, baseResearchTime: 50000, maxLevel: 3, costMultiplier: 1.9, timeMultiplier: 1.7 },
 ];
+
+// --- Utility Functions ---
+
+// Calculate cost for a specific level
+const calculateCost = (baseCost: Partial<Record<OreType, number>>, level: number, multiplier: number = 1): Partial<Record<OreType, number>> => {
+  const cost: Partial<Record<OreType, number>> = {};
+  for (const ore in baseCost) {
+    cost[ore as OreType] = Math.floor((baseCost[ore as OreType] ?? 0) * Math.pow(multiplier, level - 1));
+  }
+  return cost;
+};
+
+// Calculate construction time for a specific level
+const calculateTime = (baseTime: number, level: number, multiplier: number = 1): number => {
+  return Math.floor(baseTime * Math.pow(multiplier, level - 1));
+};
+
+// Calculate energy production/cost for a specific level
+const calculateEnergy = (baseEnergy: number | undefined, level: number, multiplier: number = 1): number => {
+    if (baseEnergy === undefined) return 0;
+    return Math.floor(baseEnergy * Math.pow(multiplier, level - 1));
+};
+
 
 // Helper to format resource costs with icons
 const formatCostWithIcons = (cost: Partial<Record<OreType, number>>): React.ReactNode => {
-    return Object.entries(cost).map(([ore, amount]) => (
-        <span key={ore} className="inline-flex items-center mr-2 whitespace-nowrap">
-            {getOreIcon(ore as OreType)}
-            <span className="ml-0.5">{amount}</span>
-        </span>
-    ));
+    // Sort ore types for consistent display order (optional but nice)
+    const sortedOres = Object.keys(cost).sort() as OreType[];
+
+    return sortedOres.map((ore) => {
+        const amount = cost[ore];
+        if (amount === undefined || amount <= 0) return null; // Don't display if cost is 0 or undefined
+        return (
+            <span key={ore} className="inline-flex items-center mr-2 whitespace-nowrap">
+                {getOreIcon(ore as OreType)}
+                <span className="ml-0.5">{amount}</span>
+            </span>
+        );
+    }).filter(Boolean); // Remove null entries
 };
+
 
 // Helper to check if player has enough resources
 const hasEnoughResources = (cost: Partial<Record<OreType, number>>, currentResources: Resources): boolean => {
@@ -84,6 +127,7 @@ const getOreIcon = (oreType: OreType) => {
     }
 };
 
+// --- Component State and Logic ---
 
 const ControlPanel: React.FC = () => {
   const { toast } = useToast();
@@ -91,30 +135,21 @@ const ControlPanel: React.FC = () => {
   const [resources, setResources] = useState<Resources>({
     [OreTypeEnum.Iron]: 1000,
     [OreTypeEnum.Copper]: 500,
-    [OreTypeEnum.Gold]: 50,
-    [OreTypeEnum.Titanium]: 20,
-    [OreTypeEnum.Uranium]: 0,
-    Energy: { production: 20, consumption: 0, balance: 20 },
+    [OreTypeEnum.Gold]: 100,
+    [OreTypeEnum.Titanium]: 50,
+    [OreTypeEnum.Uranium]: 10,
+    Energy: { production: 0, consumption: 0, balance: 0 },
   });
 
-  // State to track constructions in progress { buildingId: { startTime, duration } }
+  // State to track constructions in progress { buildingId: { startTime, duration, targetLevel } }
   const [constructing, setConstructing] = useState<Record<string, ConstructionProgress>>({});
   const [constructionProgress, setConstructionProgress] = useState<Record<string, number>>({});
-  // State to track built buildings (IDs) - Initialize with Colony Hub
+  // State to track built buildings (IDs) - Initialize with Colony Hub Lvl 1
   const [builtBuildings, setBuiltBuildings] = useState<Set<string>>(new Set(['colony_hub']));
   // State to track building levels { buildingId: level }
-  const [buildingLevels, setBuildingLevels] = useState<Record<string, number>>(() => {
-      // Initialize levels from availableBuildings definition
-      const initialLevels: Record<string, number> = {};
-      availableBuildings.forEach(b => {
-          if (b.level) initialLevels[b.id] = b.level;
-      });
-       // Ensure colony hub starts at level 1 if built
-       if (builtBuildings.has('colony_hub') && !initialLevels['colony_hub']) {
-          initialLevels['colony_hub'] = 1;
-       }
-      return initialLevels;
-  });
+  const [buildingLevels, setBuildingLevels] = useState<Record<string, number>>({ 'colony_hub': 1 }); // Start with Hub Lvl 1
+   // State for completed research { researchId: level }
+  const [completedResearch, setCompletedResearch] = useState<Record<string, number>>({}); // Track completed research levels
 
    // Group buildings by category
    const groupedBuildings = useMemo(() => {
@@ -126,21 +161,36 @@ const ControlPanel: React.FC = () => {
                groups[building.category].push(building);
            } else {
                console.warn(`Building ${building.name} has unknown category: ${building.category}`);
-               // Optionally add to a default category like 'Utility'
-               groups['Utility'].push(building);
+               groups['Utility'].push(building); // Add to Utility if unknown
            }
        });
        return groups;
-   }, []); // Depends only on the static availableBuildings definition
+   }, []); // Static dependency
 
-  // Recalculate energy balance
+  // Recalculate energy balance based on current building levels
+   const recalculateEnergyBalance = useCallback(() => {
+       let production = 0;
+       let consumption = 0;
+
+       builtBuildings.forEach(id => {
+           const buildingDef = availableBuildings.find(b => b.id === id);
+           const level = buildingLevels[id] ?? 1;
+           if (buildingDef) {
+                production += calculateEnergy(buildingDef.baseEnergyProduction, level, buildingDef.energyMultiplier);
+                consumption += calculateEnergy(buildingDef.baseEnergyCost, level, buildingDef.energyMultiplier);
+           }
+       });
+
+       setResources(prev => ({
+           ...prev,
+           Energy: { production, consumption, balance: production - consumption }
+       }));
+   }, [builtBuildings, buildingLevels]); // Dependencies
+
+  // Effect to recalculate energy when buildings or levels change
   useEffect(() => {
-    setResources(prev => {
-        if (!prev.Energy) return prev;
-        const balance = prev.Energy.production - prev.Energy.consumption;
-        return { ...prev, Energy: { ...prev.Energy, balance } };
-    });
-  }, [resources.Energy?.production, resources.Energy?.consumption]);
+      recalculateEnergyBalance();
+  }, [recalculateEnergyBalance]); // Use the memoized callback
 
   // Update construction progress periodically
   useEffect(() => {
@@ -163,14 +213,14 @@ const ControlPanel: React.FC = () => {
       }
        // Only update state if any progress actually changed
       if (changed) {
-         setConstructionProgress(newProgress);
+         setConstructionProgress(prev => ({ ...prev, ...newProgress })); // Merge updates
       }
     }, 100); // Update progress every 100ms
 
     return () => clearInterval(interval);
-  }, [constructing, constructionProgress]); // Add constructionProgress as dependency
+  }, [constructing, constructionProgress]);
 
-  // Hook to force re-render (use sparingly, prefer state management)
+  // Hook to force re-render (use sparingly)
   const [, forceUpdate] = useReducer(x => x + 1, 0);
 
   // Helper to check if building requirements are met (also used for ships)
@@ -178,86 +228,87 @@ const ControlPanel: React.FC = () => {
     if (!requires) return true;
     const requirements = Array.isArray(requires) ? requires : [requires];
     return requirements.every(req => {
-        // Simple check for now, assumes format "Building Name" or "Research: Name"
         if (req.startsWith('Research:')) {
-            // TODO: Check completed research state
-            console.warn("Research requirement check not implemented yet for:", req);
-            return true; // Placeholder
+            const researchName = req.substring(9).trim();
+            const researchDef = availableResearch.find(r => r.name === researchName);
+            return researchDef ? (completedResearch[researchDef.id] ?? 0) >= 1 : false; // Check if research level >= 1
         } else {
-            // Find the building ID by name (less robust, use IDs ideally)
             const requiredBuilding = availableBuildings.find(b => b.name === req);
             return requiredBuilding ? builtBuildings.has(requiredBuilding.id) : false;
         }
     });
-  }, [builtBuildings]); // Depends on builtBuildings state
+   }, [builtBuildings, completedResearch]);
 
-  const handleBuild = (building: Building) => {
-    if (!hasEnoughResources(building.cost, resources)) {
+  // --- Build/Upgrade Logic ---
+  const handleBuildOrUpgrade = (building: Building) => {
+    const currentLevel = buildingLevels[building.id] ?? 0;
+    const targetLevel = currentLevel + 1;
+    const isBuilding = currentLevel === 0; // True if we are building level 1
+    const maxLevel = building.maxLevel ?? 1; // Default max level is 1 if not specified
+
+    if (targetLevel > maxLevel) {
+        toast({ title: "Max Level Reached", description: `${building.name} is already at its maximum level (${maxLevel}).` });
+        return;
+    }
+
+     if (constructing[building.id]) {
+        const existingConstruction = constructing[building.id];
+        toast({
+            title: "Already In Progress",
+            description: `${building.name} is currently being ${isBuilding ? 'constructed' : 'upgraded'} to Level ${existingConstruction.targetLevel}.`,
+        });
+        return;
+    }
+
+    if (!areRequirementsMet(building.requires)) {
+        toast({ title: "Requirements Not Met", description: `Cannot build or upgrade ${building.name}. Check requirements.`, variant: "destructive" });
+        return;
+    }
+
+    // Calculate cost and time for the TARGET level
+    const costForNextLevel = calculateCost(building.baseCost, targetLevel, building.costMultiplier);
+    const timeForNextLevel = calculateTime(building.baseConstructionTime, targetLevel, building.timeMultiplier);
+
+    if (!hasEnoughResources(costForNextLevel, resources)) {
       toast({
         title: "Insufficient Resources",
-        description: `Not enough resources to build ${building.name}.`,
+        description: `Not enough resources to ${isBuilding ? 'build' : 'upgrade'} ${building.name} to Level ${targetLevel}.`,
         variant: "destructive",
       });
       return;
     }
 
-    if (constructing[building.id]) {
-        toast({
-            title: "Already Constructing",
-            description: `${building.name} is already under construction.`,
-        });
-        return;
-    }
-     if (!areRequirementsMet(building.requires)) {
-        toast({ title: "Requirements Not Met", description: `Cannot build ${building.name}. Check requirements.`, variant: "destructive" });
-        return;
-    }
-     // Check if already built (for initial build, upgrades handled separately later)
-    if (builtBuildings.has(building.id)) {
-        toast({ title: "Already Built", description: `${building.name} is already built. (Upgrade function TBD)` });
-        return;
-    }
-
     // Deduct resources immediately
     setResources(prev => {
       const newResources = { ...prev };
-      Object.entries(building.cost).forEach(([ore, amount]) => {
+      Object.entries(costForNextLevel).forEach(([ore, amount]) => {
         newResources[ore as OreType] = (newResources[ore as OreType] ?? 0) - amount;
       });
       return newResources;
     });
 
-    // Start construction tracking
+    // Start construction/upgrade tracking
     const startTime = Date.now();
-    const constructionData = { startTime, duration: building.constructionTime };
-    setConstructing(prev => ({
-        ...prev,
-        [building.id]: constructionData
-    }));
+    const constructionData: ConstructionProgress = { startTime, duration: timeForNextLevel, targetLevel };
+    setConstructing(prev => ({ ...prev, [building.id]: constructionData }));
     setConstructionProgress(prev => ({ ...prev, [building.id]: 0 })); // Initialize progress
 
     toast({
-      title: "Construction Started",
-      description: `Building ${building.name}...`,
+      title: `${isBuilding ? 'Construction' : 'Upgrade'} Started`,
+      description: `${isBuilding ? 'Building' : 'Upgrading'} ${building.name} to Level ${targetLevel}...`,
     });
 
-    // Simulate construction time - using the constructionData from closure
+    // --- Construction Timer ---
     setTimeout(() => {
-      // Construction finished: Update game state (add building, adjust energy, etc.)
-      setResources(prev => {
-        const newResources = { ...prev };
-        if (prev.Energy) {
-          const newConsumption = prev.Energy.consumption + (building.energyCost ?? 0);
-          const newProduction = prev.Energy.production + (building.energyProduction ?? 0);
-          newResources.Energy = { ...prev.Energy, consumption: newConsumption, production: newProduction };
+       // Add building to built set if it was the first build
+        if (isBuilding) {
+            setBuiltBuildings(prev => new Set(prev).add(building.id));
         }
-        return newResources;
-      });
+        // Update building level
+        setBuildingLevels(prev => ({ ...prev, [building.id]: targetLevel }));
 
-       // Add building to the set of built buildings and set its initial level
-       setBuiltBuildings(prev => new Set(prev).add(building.id));
-       setBuildingLevels(prev => ({ ...prev, [building.id]: building.level ?? 1 })); // Set level on completion
-
+       // Recalculate energy AFTER level update
+       recalculateEnergyBalance(); // Trigger recalculation
 
        // Remove from constructing state and progress
        setConstructing(prev => {
@@ -272,17 +323,17 @@ const ControlPanel: React.FC = () => {
        });
 
       toast({
-        title: "Construction Complete",
-        description: `${building.name} finished construction.`,
-        variant: "default", // Use default variant for success
+        title: `${isBuilding ? 'Construction' : 'Upgrade'} Complete`,
+        description: `${building.name} reached Level ${targetLevel}.`,
+        variant: "default",
       });
 
-      // Optional: Trigger a re-render if needed, though state updates should handle it
-       forceUpdate();
+      forceUpdate(); // Force re-render to ensure UI updates correctly
 
-    }, building.constructionTime); // Use original constructionTime
+    }, timeForNextLevel); // Use calculated time for the target level
   };
 
+  // --- Ship Building Logic ---
   const handleBuildShip = (ship: ShipType) => {
     // Check common ship requirement first: Ship Facility
     if (!builtBuildings.has('ship_facility')) {
@@ -307,45 +358,62 @@ const ControlPanel: React.FC = () => {
         });
         console.log(`Building ${ship.name}... (State updated)`);
          toast({ title: "Ship Construction Started", description: `Building ${ship.name}...` });
-        // TODO: Add to shipyard queue, implement build time
+        // TODO: Add to shipyard queue, implement build time based on Ship Facility level
         return newResources;
     });
 
   };
 
+   // --- Research Logic ---
    const handleResearch = (research: ResearchItem) => {
-     // Check if Research Lab exists
      if (!builtBuildings.has('research_lab')) {
          toast({ title: "Research Lab Required", description: `Cannot research ${research.name}. Build a Research Lab first.`, variant: "destructive" });
          return;
      }
 
-     if (hasEnoughResources(research.cost, resources) && !research.completed) {
-        setResources(prev => {
-            const newResources = { ...prev };
-            Object.entries(research.cost).forEach(([ore, amount]) => {
-                newResources[ore as OreType] = (newResources[ore as OreType] ?? 0) - amount;
-            });
-             const itemIndex = availableResearch.findIndex(item => item.id === research.id);
-             if (itemIndex > -1) {
-                 // This is example data mutation, in real app update state properly
-                 // availableResearch[itemIndex].completed = true;
-                 // Instead, manage completed research in state
-             }
-             console.log(`Researching ${research.name}... (State updated)`);
-             toast({ title: "Research Started", description: `Researching ${research.name}...` });
-             // TODO: Implement research time/queue & update state properly
-             forceUpdate(); // Force update for example mutation
-            return newResources;
-        });
+     const currentLevel = completedResearch[research.id] ?? 0;
+     const targetLevel = currentLevel + 1;
+     const maxLevel = research.maxLevel ?? 1;
 
-
-     } else if (research.completed) {
-         toast({ title: "Already Researched", description: `${research.name} has already been researched.` });
-     } else {
-       console.log(`Not enough resources to research ${research.name}`);
-        toast({ title: "Insufficient Resources", description: `Cannot research ${research.name}.`, variant: "destructive" });
+     if (targetLevel > maxLevel) {
+         toast({ title: "Max Research Level Reached", description: `${research.name} is already at its maximum level (${maxLevel}).` });
+         return;
      }
+
+     // TODO: Add research queue state check
+     // if (researchQueue.isFull || researchQueue.isResearching(research.id)) { ... }
+
+     const costForNextLevel = calculateCost(research.baseCost, targetLevel, research.costMultiplier);
+     const timeForNextLevel = calculateTime(research.baseResearchTime, targetLevel, research.timeMultiplier);
+     // TODO: Factor in Research Lab level bonus for time reduction
+
+     if (!hasEnoughResources(costForNextLevel, resources)) {
+         toast({ title: "Insufficient Resources", description: `Cannot research ${research.name} Level ${targetLevel}.`, variant: "destructive" });
+         return;
+     }
+
+     // Deduct resources
+     setResources(prev => {
+         const newResources = { ...prev };
+         Object.entries(costForNextLevel).forEach(([ore, amount]) => {
+             newResources[ore as OreType] = (newResources[ore as OreType] ?? 0) - amount;
+         });
+         return newResources;
+     });
+
+     toast({ title: "Research Started", description: `Researching ${research.name} Level ${targetLevel}...` });
+     console.log(`Researching ${research.name} Level ${targetLevel}... Time: ${timeForNextLevel / 1000}s`);
+
+     // TODO: Add to actual research queue with timer
+     // researchQueue.add({ researchId: research.id, targetLevel, duration: timeForNextLevel });
+
+     // Placeholder for immediate completion for testing
+     setTimeout(() => {
+         setCompletedResearch(prev => ({ ...prev, [research.id]: targetLevel }));
+         toast({ title: "Research Complete", description: `${research.name} reached Level ${targetLevel}.` });
+         forceUpdate(); // Force UI update
+          console.log("Research complete:", research.name, "Level", targetLevel);
+     }, timeForNextLevel); // Use calculated time
    };
 
 
@@ -399,86 +467,110 @@ const ControlPanel: React.FC = () => {
                         <SidebarGroupLabel className="text-xs font-semibold uppercase text-muted-foreground px-0">{category}</SidebarGroupLabel>
                         <SidebarGroupContent className="p-0">
                           <SidebarMenu className="p-0 gap-1">
-                              {groupedBuildings[category].map((building) => {
-                                  const isConstructing = !!constructing[building.id];
-                                  const currentLevel = buildingLevels[building.id]; // Get current level from state
-                                  const isBuilt = builtBuildings.has(building.id); // Check if already built (at any level)
-                                  const progress = constructionProgress[building.id] ?? 0;
-                                  const requirementsMet = areRequirementsMet(building.requires); // Check requirements for build button itself
-                                  // Disable if not enough resources, is constructing, already built (for initial build), or requirements not met
-                                  // Upgrade logic TBD - for now, 'Build' button is disabled if built.
-                                  const isDisabled = !hasEnoughResources(building.cost, resources) || isConstructing || isBuilt || !requirementsMet;
+                              {groupedBuildings[category].map((buildingDef) => {
+                                  const currentLevel = buildingLevels[buildingDef.id] ?? 0;
+                                  const isBuilt = currentLevel > 0;
+                                  const isConstructing = !!constructing[buildingDef.id];
+                                  const constructionData = constructing[buildingDef.id];
+                                  const progress = constructionProgress[buildingDef.id] ?? 0;
+                                  const targetLevel = constructionData?.targetLevel ?? currentLevel + 1;
+                                  const maxLevel = buildingDef.maxLevel ?? 1;
+                                  const isMaxLevel = currentLevel >= maxLevel;
+
+                                  const requirementsMet = areRequirementsMet(buildingDef.requires);
+                                  const costForNextLevel = calculateCost(buildingDef.baseCost, targetLevel, buildingDef.costMultiplier);
+                                  const timeForNextLevel = calculateTime(buildingDef.baseConstructionTime, targetLevel, buildingDef.timeMultiplier);
+                                  const energyCostNextLevel = calculateEnergy(buildingDef.baseEnergyCost, targetLevel, buildingDef.energyMultiplier);
+                                  const energyProdNextLevel = calculateEnergy(buildingDef.baseEnergyProduction, targetLevel, buildingDef.energyMultiplier);
+
+                                  const hasResourcesForNext = hasEnoughResources(costForNextLevel, resources);
+
+                                  // Disable logic:
+                                  // - If constructing this building
+                                  // - If max level reached
+                                  // - If requirements not met (for initial build or upgrade)
+                                  // - If not enough resources for the next level
+                                  const isDisabled = isConstructing || isMaxLevel || !requirementsMet || !hasResourcesForNext;
+
+                                  const buttonText = isConstructing
+                                      ? `Building Lvl ${constructionData.targetLevel}`
+                                      : isBuilt
+                                          ? (isMaxLevel ? "Max Level" : `Upgrade (Lvl ${targetLevel})`)
+                                          : "Build (Lvl 1)";
 
                                   return (
-                                      <SidebarMenuItem key={building.id} className="p-0">
+                                      <SidebarMenuItem key={buildingDef.id} className="p-0">
                                           <Tooltip>
                                               <TooltipTrigger asChild>
-                                                  <Card className={cn("w-full bg-card/50 hover:bg-card/70 transition-colors relative overflow-hidden", isBuilt && "border-primary/50 bg-primary/10")}>
+                                                  <Card className={cn("w-full bg-card/50 hover:bg-card/70 transition-colors relative overflow-hidden", isBuilt && !isConstructing && "border-primary/50 bg-primary/10")}>
                                                       {/* Progress Bar Overlay */}
                                                       {isConstructing && (
                                                           <Progress
                                                               value={progress}
-                                                              className="absolute top-0 left-0 w-full h-full rounded-none opacity-30 bg-transparent [&>div]:bg-primary" // Style the progress bar
+                                                              className="absolute top-0 left-0 w-full h-full rounded-none opacity-30 bg-transparent [&>div]:bg-primary"
                                                               aria-label={`Construction progress: ${Math.round(progress)}%`}
                                                           />
                                                       )}
-                                                      <CardContent className="p-2 flex items-center justify-between gap-2 relative z-10"> {/* Ensure content is above progress */}
+                                                      <CardContent className="p-2 flex items-center justify-between gap-2 relative z-10">
                                                           <div className="flex items-center gap-2 flex-1 min-w-0">
-                                                              <building.icon className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                                                              <buildingDef.icon className="w-5 h-5 text-muted-foreground flex-shrink-0" />
                                                               <div className="flex-1 min-w-0">
-                                                                  {/* Display current level if built, otherwise base level */}
-                                                                  <p className="text-sm font-medium truncate">{building.name} {currentLevel ? `(Lvl ${currentLevel})` : ''}</p>
+                                                                  <p className="text-sm font-medium truncate">{buildingDef.name} {currentLevel > 0 ? `(Lvl ${currentLevel})` : ''}</p>
                                                                   <div className="text-xs text-muted-foreground truncate flex items-center flex-wrap">
-                                                                      <span className="mr-1">Cost:</span> {formatCostWithIcons(building.cost)}
+                                                                     {/* Show cost for NEXT level */}
+                                                                      {!isMaxLevel && <span className="mr-1">Cost:</span>}
+                                                                      {!isMaxLevel && formatCostWithIcons(costForNextLevel)}
+                                                                       {isMaxLevel && <span className="text-xs text-primary">Max Level</span>}
                                                                   </div>
-                                                                  {building.energyCost || building.energyProduction ? (
+                                                                  {/* Show current energy impact */}
+                                                                  {buildingDef.baseEnergyCost !== undefined || buildingDef.baseEnergyProduction !== undefined ? (
                                                                       <p className="text-xs text-muted-foreground truncate">
-                                                                          Energy: {building.energyProduction ? <span className="text-[hsl(var(--chart-1))]">{`+${building.energyProduction}`}</span> : <span className="text-destructive">{`-${building.energyCost}`}</span>}
+                                                                          Energy: {calculateEnergy(buildingDef.baseEnergyProduction, currentLevel, buildingDef.energyMultiplier) > 0 ? <span className="text-[hsl(var(--chart-1))]">{`+${calculateEnergy(buildingDef.baseEnergyProduction, currentLevel, buildingDef.energyMultiplier)}`}</span> : (calculateEnergy(buildingDef.baseEnergyCost, currentLevel, buildingDef.energyMultiplier) > 0 ? <span className="text-destructive">{`-${calculateEnergy(buildingDef.baseEnergyCost, currentLevel, buildingDef.energyMultiplier)}`}</span> : '0')}
                                                                       </p>
                                                                   ) : null}
                                                                   {isConstructing && (
-                                                                      <p className="text-xs text-primary animate-pulse">Constructing ({Math.round(progress)}%)...</p>
-                                                                  )}
-                                                                   {isBuilt && !isConstructing && (
-                                                                      <p className="text-xs text-primary">Built</p>
+                                                                      <p className="text-xs text-primary animate-pulse">Building Lvl {constructionData.targetLevel} ({Math.round(progress)}%)...</p>
                                                                   )}
                                                               </div>
                                                           </div>
-                                                          {/* TODO: Change button to 'Upgrade' when built */}
                                                           <Button
                                                               size="sm"
-                                                              onClick={() => handleBuild(building)}
+                                                              onClick={() => handleBuildOrUpgrade(buildingDef)}
                                                               disabled={isDisabled}
-                                                              className={cn(isDisabled && "opacity-50 cursor-not-allowed")}
+                                                              className={cn(isDisabled && !isConstructing && "opacity-50 cursor-not-allowed")} // Don't grey out if constructing
                                                           >
-                                                              {isConstructing ? "Building" : (isBuilt ? "Built" : "Build")}
+                                                              {buttonText}
                                                           </Button>
                                                       </CardContent>
                                                   </Card>
                                               </TooltipTrigger>
-                                              <TooltipContent side="right" align="start" className="max-w-xs">
-                                                  {/* Show current level in tooltip if built */}
-                                                   <p className="font-semibold">{building.name} {currentLevel ? `(Lvl ${currentLevel})` : `(Lvl ${building.level ?? 1})`}</p>
-                                                  <p className="text-sm text-muted-foreground mb-2">{building.description}</p>
-                                                  <div className="text-sm space-y-1">
-                                                      {/* Display cost for next level if upgradable, else initial cost */}
-                                                      <p>Cost: {formatCostWithIcons(building.cost)}</p>
-                                                      <p>Build Time: {building.constructionTime / 1000}s</p>
-                                                      {building.energyCost && <p>Energy Consumption: {building.energyCost}</p>}
-                                                      {building.energyProduction && <p>Energy Production: {building.energyProduction}</p>}
-                                                      {building.requires && <p className={cn("text-amber-400", !requirementsMet && "text-destructive/80")}>Requires: {Array.isArray(building.requires) ? building.requires.join(', ') : building.requires}</p>}
+                                              <TooltipContent side="right" align="start" className="max-w-xs text-xs">
+                                                  <p className="font-semibold text-sm">{buildingDef.name} {currentLevel > 0 ? `(Lvl ${currentLevel})` : '(Not Built)'}</p>
+                                                  <p className="text-muted-foreground mb-2">{buildingDef.description}</p>
+                                                  <div className="space-y-1">
+                                                      {/* Show stats for NEXT level if not max */}
+                                                      {!isMaxLevel && (
+                                                          <>
+                                                              <p className="font-medium">Next Level ({targetLevel}):</p>
+                                                              <p>Cost: {formatCostWithIcons(costForNextLevel)}</p>
+                                                              <p>Build Time: {timeForNextLevel / 1000}s</p>
+                                                              {buildingDef.baseEnergyCost !== undefined && <p>Energy Cost: {energyCostNextLevel}</p>}
+                                                              {buildingDef.baseEnergyProduction !== undefined && <p>Energy Prod: {energyProdNextLevel}</p>}
+                                                          </>
+                                                      )}
+                                                       {isMaxLevel && <p className="text-primary font-medium">Maximum Level Reached</p>}
+                                                      {buildingDef.requires && <p className={cn("text-amber-400", !requirementsMet && "text-destructive/80")}>Requires: {Array.isArray(buildingDef.requires) ? buildingDef.requires.join(', ') : buildingDef.requires}</p>}
                                                   </div>
-                                                   {isBuilt && <p className="text-xs text-primary mt-2">Already built. (Upgrade TBD)</p>}
                                                   {isConstructing && (
                                                       <div className="mt-2">
                                                           <p className="text-xs text-primary">Construction in progress...</p>
                                                           <Progress value={progress} className="h-1 mt-1" />
                                                       </div>
                                                   )}
-                                                  {!hasEnoughResources(building.cost, resources) && !isConstructing && !isBuilt && (
-                                                    <p className="text-xs text-destructive mt-2">Insufficient resources.</p>
+                                                  {!isConstructing && !isMaxLevel && !hasResourcesForNext && (
+                                                    <p className="text-xs text-destructive mt-2">Insufficient resources for Level {targetLevel}.</p>
                                                   )}
-                                                  {!requirementsMet && !isConstructing && !isBuilt && (
+                                                   {!isConstructing && !requirementsMet && (
                                                      <p className="text-xs text-destructive mt-2">Requirements not met.</p>
                                                   )}
                                               </TooltipContent>
@@ -534,10 +626,10 @@ const ControlPanel: React.FC = () => {
                                             </CardContent>
                                         </Card>
                                     </TooltipTrigger>
-                                    <TooltipContent side="right" align="start" className="max-w-xs">
-                                        <p className="font-semibold">{ship.name}</p>
-                                        <p className="text-sm text-muted-foreground mb-2">{ship.description}</p>
-                                        <div className="text-sm space-y-1">
+                                    <TooltipContent side="right" align="start" className="max-w-xs text-xs">
+                                        <p className="font-semibold text-sm">{ship.name}</p>
+                                        <p className="text-muted-foreground mb-2">{ship.description}</p>
+                                        <div className="space-y-1">
                                             <p>Cost: {formatCostWithIcons(ship.cost)}</p>
                                             {/* TODO: Add build time for ships */}
                                              <p className={cn("text-amber-400", (!hasShipFacility || !specificRequirementsMet) && "text-destructive/80")}>Requires: {requirementsText}</p>
@@ -570,43 +662,77 @@ const ControlPanel: React.FC = () => {
                         </Card>
                     )}
                     {availableResearch.map((item) => {
+                        const currentLevel = completedResearch[item.id] ?? 0;
+                        const targetLevel = currentLevel + 1;
+                        const maxLevel = item.maxLevel ?? 1;
+                        const isMaxLevel = currentLevel >= maxLevel;
                         const hasLab = builtBuildings.has('research_lab');
-                        const enoughResources = hasEnoughResources(item.cost, resources);
-                        const isDisabled = !hasLab || !enoughResources || item.completed;
+                        // TODO: Add research queue check
+                        const isResearching = false; // Placeholder
+
+                        const costForNextLevel = calculateCost(item.baseCost, targetLevel, item.costMultiplier);
+                        const timeForNextLevel = calculateTime(item.baseResearchTime, targetLevel, item.timeMultiplier);
+                         // TODO: Factor in lab level bonus
+                        const enoughResources = hasEnoughResources(costForNextLevel, resources);
+
+                        const isDisabled = !hasLab || isResearching || isMaxLevel || !enoughResources;
+
+                        const buttonText = isResearching
+                                        ? `Researching Lvl ${targetLevel}`
+                                        : isMaxLevel
+                                            ? "Max Level"
+                                            : `Research (Lvl ${targetLevel})`;
 
                         return (
                             <SidebarMenuItem key={item.id}>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
-                                        <Card className={cn("w-full hover:bg-card/70 transition-colors", item.completed ? "bg-[hsl(var(--chart-1))]/30 border-[hsl(var(--chart-1))]" : "bg-card/50")}>
+                                         <Card className={cn(
+                                                "w-full hover:bg-card/70 transition-colors",
+                                                currentLevel > 0 && !isMaxLevel && "bg-[hsl(var(--chart-1))]/20 border-[hsl(var(--chart-1))]/50", // Partially researched style
+                                                isMaxLevel && "bg-[hsl(var(--chart-1))]/40 border-[hsl(var(--chart-1))]", // Max level style
+                                                !isMaxLevel && currentLevel === 0 && "bg-card/50", // Not started style
+                                                isResearching && "border-primary/50 bg-primary/10" // Researching style (similar to building)
+                                            )}>
                                             <CardContent className="p-2 flex items-center justify-between gap-2">
                                                 <div className="flex items-center gap-2 flex-1 min-w-0">
                                                     <item.icon className="w-5 h-5 text-muted-foreground flex-shrink-0" />
                                                     <div className="flex-1 min-w-0">
-                                                        <p className="text-sm font-medium truncate">{item.name}</p>
+                                                        <p className="text-sm font-medium truncate">{item.name} {currentLevel > 0 ? `(Lvl ${currentLevel})` : ''}</p>
                                                         <div className="text-xs text-muted-foreground truncate flex items-center flex-wrap">
-                                                            <span className="mr-1">Cost:</span> {formatCostWithIcons(item.cost)}
+                                                            {!isMaxLevel && <span className="mr-1">Cost:</span>}
+                                                            {!isMaxLevel && formatCostWithIcons(costForNextLevel)}
+                                                             {isMaxLevel && <span className="text-xs text-primary">Max Level</span>}
                                                         </div>
+                                                        {isResearching && (
+                                                            <p className="text-xs text-primary animate-pulse">Researching Lvl {targetLevel}...</p> // Show progress later
+                                                        )}
                                                     </div>
                                                 </div>
                                                 <Button size="sm" onClick={() => handleResearch(item)} disabled={isDisabled}>
-                                                    {item.completed ? "Done" : "Research"}
+                                                    {buttonText}
                                                 </Button>
                                             </CardContent>
                                         </Card>
                                     </TooltipTrigger>
-                                    <TooltipContent side="right" align="start" className="max-w-xs">
-                                        <p className="font-semibold">{item.name}</p>
-                                        <p className="text-sm text-muted-foreground mb-2">{item.description}</p>
-                                        <div className="text-sm space-y-1">
-                                            <p>Cost: {formatCostWithIcons(item.cost)}</p>
-                                            {/* TODO: Add research time */}
+                                    <TooltipContent side="right" align="start" className="max-w-xs text-xs">
+                                        <p className="font-semibold text-sm">{item.name} {currentLevel > 0 ? `(Lvl ${currentLevel})` : '(Not Researched)'}</p>
+                                        <p className="text-muted-foreground mb-2">{item.description}</p>
+                                        <div className="space-y-1">
+                                            {!isMaxLevel && (
+                                                <>
+                                                   <p className="font-medium">Next Level ({targetLevel}):</p>
+                                                   <p>Cost: {formatCostWithIcons(costForNextLevel)}</p>
+                                                   <p>Research Time: {timeForNextLevel / 1000}s</p>
+                                                </>
+                                            )}
+                                             {isMaxLevel && <p className="text-primary font-medium">Maximum Level Reached</p>}
                                             {item.unlocks && <p className="text-sky-400">Unlocks: {item.unlocks}</p>}
                                         </div>
                                         {!hasLab && <p className="text-xs text-destructive mt-2">Requires Research Lab.</p>}
-                                        {item.completed && <p className="text-xs text-[hsl(var(--chart-1))] mt-2">Already Researched</p>}
-                                        {hasLab && !enoughResources && !item.completed && (
-                                            <p className="text-xs text-destructive mt-2">Insufficient resources.</p>
+                                         {isResearching && <p className="text-xs text-primary mt-2">Research in progress...</p>}
+                                        {hasLab && !enoughResources && !isMaxLevel && !isResearching && (
+                                            <p className="text-xs text-destructive mt-2">Insufficient resources for Level {targetLevel}.</p>
                                         )}
                                     </TooltipContent>
                                 </Tooltip>
@@ -630,12 +756,24 @@ const ControlPanel: React.FC = () => {
                     {/* Add more detailed stats: buildings list, ships docked, etc. */}
                      <h5 className="font-semibold pt-2 border-t border-border/50 mt-2">Built Structures</h5>
                      <ul className="list-disc list-inside text-xs">
-                          {[...builtBuildings].map(id => {
+                          {[...builtBuildings].sort().map(id => { // Sort alphabetically
                               const building = availableBuildings.find(b => b.id === id);
                               const level = buildingLevels[id]; // Get level from state
                               return building ? <li key={id}>{building.name} {level ? `(Lvl ${level})` : ''}</li> : null;
                           })}
                      </ul>
+                     <h5 className="font-semibold pt-2 border-t border-border/50 mt-2">Completed Research</h5>
+                        <ul className="list-disc list-inside text-xs">
+                            {Object.entries(completedResearch).sort(([idA], [idB]) => { // Sort research alphabetically by ID
+                                const nameA = availableResearch.find(r => r.id === idA)?.name ?? idA;
+                                const nameB = availableResearch.find(r => r.id === idB)?.name ?? idB;
+                                return nameA.localeCompare(nameB);
+                            }).map(([id, level]) => {
+                                const research = availableResearch.find(r => r.id === id);
+                                return research ? <li key={id}>{research.name} (Lvl {level})</li> : null;
+                            })}
+                            {Object.keys(completedResearch).length === 0 && <li className="italic text-muted-foreground">None</li>}
+                        </ul>
                     </CardContent>
                 </Card>
                 </TabsContent>
@@ -652,6 +790,3 @@ const ControlPanel: React.FC = () => {
 };
 
 export default ControlPanel;
-
-
-    

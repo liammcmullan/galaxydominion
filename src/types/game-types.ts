@@ -47,13 +47,18 @@ export interface Building {
   name: string;
   category: BuildingCategory; // Add category property
   description: string;
-  cost: Partial<Record<OreType, number>>; // Cost can be multiple ore types
+  baseCost: Partial<Record<OreType, number>>; // Base cost for level 1
+  costMultiplier?: number; // Multiplier per level (e.g., 1.5)
   icon: React.ElementType;
-  level?: number;
-  energyCost?: number;
-  energyProduction?: number;
+  level?: number; // Current level (used in state, base defined here is usually 1)
+  maxLevel?: number; // Maximum level for this building
+  baseEnergyCost?: number; // Base energy cost for level 1
+  baseEnergyProduction?: number; // Base energy production for level 1
+  energyMultiplier?: number; // Multiplier per level for energy cost/production
   requires?: string | string[]; // Research or other building requirement (can be single or multiple)
-  constructionTime: number; // Time to build in milliseconds
+  baseConstructionTime: number; // Base time to build level 1 in milliseconds
+  timeMultiplier?: number; // Multiplier per level (e.g., 1.5)
+  oreTarget?: OreType; // Specific ore this building targets (e.g., for refineries)
 }
 
 export interface ShipType {
@@ -64,21 +69,31 @@ export interface ShipType {
   icon: React.ElementType;
   requires?: string | string[]; // Specific building name(s) or research ID(s) required (e.g., 'Trade Port')
   // Add stats like speed, cargo capacity, attack, defense later
+  // Add build time later
 }
 
 export interface ResearchItem {
     id: string;
     name: string;
     description: string;
-    cost: Partial<Record<OreType, number>>; // Cost can be multiple ore types
+    baseCost: Partial<Record<OreType, number>>; // Base cost for level 1
+    costMultiplier?: number;
     icon: React.ElementType;
     unlocks?: string; // e.g., 'Nuclear Reactor'
-    completed?: boolean;
+    completed?: boolean; // Track completion state
+    level?: number; // Current research level
+    maxLevel?: number; // Max research level
+    baseResearchTime: number; // Base time for level 1 in ms
+    timeMultiplier?: number;
 }
 
 // Type for tracking construction progress
 export interface ConstructionProgress {
     startTime: number;
     duration: number;
+    targetLevel: number; // The level being constructed/upgraded to
 }
+
+// Template function for ore refinery descriptions
+export const getOreRefineryDescription = (oreType: OreType) => `Extracts ${oreType} ore from the planet. Upgrading increases extraction speed.`;
 
