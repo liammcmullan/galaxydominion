@@ -19,25 +19,26 @@ import { OreType as OreTypeEnum } from '@/types/game-types';
 const buildingCategories: BuildingCategory[] = ['Core', 'Production', 'Power', 'Defense', 'Utility', 'Shipyard'];
 
 // Example Data (replace with actual game state/definitions)
+// Add default level 1 to buildings without an explicit level
 const availableBuildings: Building[] = [
   // Core
   { id: 'colony_hub', name: 'Colony Hub', category: 'Core', description: 'Central structure. Upgrading allows more buildings.', cost: { [OreTypeEnum.Iron]: 100 }, icon: Factory, level: 1, constructionTime: 10000 }, // 10 seconds
-  { id: 'colony_expansion', name: 'Colony Expansion', category: 'Core', description: 'Increases population cap and worker allocation.', cost: { [OreTypeEnum.Iron]: 200, [OreTypeEnum.Titanium]: 20 }, icon: Users, constructionTime: 20000 },
+  { id: 'colony_expansion', name: 'Colony Expansion', category: 'Core', description: 'Increases population cap and worker allocation.', cost: { [OreTypeEnum.Iron]: 200, [OreTypeEnum.Titanium]: 20 }, icon: Users, level: 1, constructionTime: 20000 },
   // Production
-  { id: 'ore_refinery', name: 'Ore Refinery', category: 'Production', description: 'Extracts ore from the planet.', cost: { [OreTypeEnum.Iron]: 50, [OreTypeEnum.Copper]: 25 }, icon: Package, energyCost: 5, constructionTime: 5000 }, // 5 seconds
+  { id: 'ore_refinery', name: 'Ore Refinery', category: 'Production', description: 'Extracts ore from the planet.', cost: { [OreTypeEnum.Iron]: 50, [OreTypeEnum.Copper]: 25 }, icon: Package, level: 1, energyCost: 5, constructionTime: 5000 }, // 5 seconds
   // Power
-  { id: 'solar_plant', name: 'Solar Plant', category: 'Power', description: 'Low output, cheap, low maintenance.', cost: { [OreTypeEnum.Iron]: 80, [OreTypeEnum.Copper]: 20 }, icon: Sun, energyProduction: 20, constructionTime: 7000 },
-  { id: 'nuclear_reactor', name: 'Nuclear Reactor', category: 'Power', description: 'High output, expensive, potential risks.', cost: { [OreTypeEnum.Iron]: 400, [OreTypeEnum.Titanium]: 100, [OreTypeEnum.Uranium]: 10 }, icon: Atom, requires: 'Research: Nuclear Power', energyProduction: 100, constructionTime: 45000 },
+  { id: 'solar_plant', name: 'Solar Plant', category: 'Power', description: 'Low output, cheap, low maintenance.', cost: { [OreTypeEnum.Iron]: 80, [OreTypeEnum.Copper]: 20 }, icon: Sun, level: 1, energyProduction: 20, constructionTime: 7000 },
+  { id: 'nuclear_reactor', name: 'Nuclear Reactor', category: 'Power', description: 'High output, expensive, potential risks.', cost: { [OreTypeEnum.Iron]: 400, [OreTypeEnum.Titanium]: 100, [OreTypeEnum.Uranium]: 10 }, icon: Atom, level: 1, requires: 'Research: Nuclear Power', energyProduction: 100, constructionTime: 45000 },
   // Defense
-  { id: 'laser_turret', name: 'Laser Turret', category: 'Defense', description: 'Basic planetary defense.', cost: { [OreTypeEnum.Iron]: 100, [OreTypeEnum.Copper]: 40 }, icon: Target, energyCost: 20, constructionTime: 9000 },
-   { id: 'missile_battery', name: 'Missile Battery', category: 'Defense', description: 'Long-range planetary defense.', cost: { [OreTypeEnum.Iron]: 180, [OreTypeEnum.Titanium]: 30 }, icon: Target, energyCost: 25, constructionTime: 18000 },
-   { id: 'shield_generator', name: 'Shield Generator', category: 'Defense', description: 'Protects the colony from orbital bombardment.', cost: { [OreTypeEnum.Iron]: 300, [OreTypeEnum.Gold]: 50, [OreTypeEnum.Titanium]: 75 }, icon: ShieldCheck, energyCost: 50, constructionTime: 30000 },
+  { id: 'laser_turret', name: 'Laser Turret', category: 'Defense', description: 'Basic planetary defense.', cost: { [OreTypeEnum.Iron]: 100, [OreTypeEnum.Copper]: 40 }, icon: Target, level: 1, energyCost: 20, constructionTime: 9000 },
+   { id: 'missile_battery', name: 'Missile Battery', category: 'Defense', description: 'Long-range planetary defense.', cost: { [OreTypeEnum.Iron]: 180, [OreTypeEnum.Titanium]: 30 }, icon: Target, level: 1, energyCost: 25, constructionTime: 18000 },
+   { id: 'shield_generator', name: 'Shield Generator', category: 'Defense', description: 'Protects the colony from orbital bombardment.', cost: { [OreTypeEnum.Iron]: 300, [OreTypeEnum.Gold]: 50, [OreTypeEnum.Titanium]: 75 }, icon: ShieldCheck, level: 1, energyCost: 50, constructionTime: 30000 },
   // Utility
-  { id: 'trade_port', name: 'Trade Port', category: 'Utility', description: 'Allows trade of ore for resources. Unlocks Cargo Ships.', cost: { [OreTypeEnum.Iron]: 75, [OreTypeEnum.Gold]: 10 }, icon: Banknote, constructionTime: 8000 },
-  { id: 'research_lab', name: 'Research Lab', category: 'Utility', description: 'Unlocks tech trees and advanced upgrades.', cost: { [OreTypeEnum.Iron]: 150, [OreTypeEnum.Copper]: 50 }, icon: Library, energyCost: 10, constructionTime: 15000 },
-  { id: 'medical_lab', name: 'Medical Lab', category: 'Utility', description: 'Improves worker efficiency and reduces downtime.', cost: { [OreTypeEnum.Iron]: 100, [OreTypeEnum.Copper]: 30 }, icon: HeartPulse, energyCost: 8, constructionTime: 12000 },
+  { id: 'trade_port', name: 'Trade Port', category: 'Utility', description: 'Allows trade of ore for resources. Unlocks Cargo Ships.', cost: { [OreTypeEnum.Iron]: 75, [OreTypeEnum.Gold]: 10 }, icon: Banknote, level: 1, constructionTime: 8000 },
+  { id: 'research_lab', name: 'Research Lab', category: 'Utility', description: 'Unlocks tech trees and advanced upgrades.', cost: { [OreTypeEnum.Iron]: 150, [OreTypeEnum.Copper]: 50 }, icon: Library, level: 1, energyCost: 10, constructionTime: 15000 },
+  { id: 'medical_lab', name: 'Medical Lab', category: 'Utility', description: 'Improves worker efficiency and reduces downtime.', cost: { [OreTypeEnum.Iron]: 100, [OreTypeEnum.Copper]: 30 }, icon: HeartPulse, level: 1, energyCost: 8, constructionTime: 12000 },
   // Shipyard (Could also be its own tab, but keeping it simple for now)
-  { id: 'ship_facility', name: 'Ship Facility', category: 'Shipyard', description: 'Builds and upgrades ships.', cost: { [OreTypeEnum.Iron]: 250, [OreTypeEnum.Titanium]: 50 }, icon: Ship, energyCost: 15, constructionTime: 25000 },
+  { id: 'ship_facility', name: 'Ship Facility', category: 'Shipyard', description: 'Builds and upgrades ships.', cost: { [OreTypeEnum.Iron]: 250, [OreTypeEnum.Titanium]: 50 }, icon: Ship, level: 1, energyCost: 15, constructionTime: 25000 },
 ];
 
 const availableShips: ShipType[] = [
@@ -101,6 +102,19 @@ const ControlPanel: React.FC = () => {
   const [constructionProgress, setConstructionProgress] = useState<Record<string, number>>({});
   // State to track built buildings (IDs) - Initialize with Colony Hub
   const [builtBuildings, setBuiltBuildings] = useState<Set<string>>(new Set(['colony_hub']));
+  // State to track building levels { buildingId: level }
+  const [buildingLevels, setBuildingLevels] = useState<Record<string, number>>(() => {
+      // Initialize levels from availableBuildings definition
+      const initialLevels: Record<string, number> = {};
+      availableBuildings.forEach(b => {
+          if (b.level) initialLevels[b.id] = b.level;
+      });
+       // Ensure colony hub starts at level 1 if built
+       if (builtBuildings.has('colony_hub') && !initialLevels['colony_hub']) {
+          initialLevels['colony_hub'] = 1;
+       }
+      return initialLevels;
+  });
 
    // Group buildings by category
    const groupedBuildings = useMemo(() => {
@@ -198,6 +212,11 @@ const ControlPanel: React.FC = () => {
         toast({ title: "Requirements Not Met", description: `Cannot build ${building.name}. Check requirements.`, variant: "destructive" });
         return;
     }
+     // Check if already built (for initial build, upgrades handled separately later)
+    if (builtBuildings.has(building.id)) {
+        toast({ title: "Already Built", description: `${building.name} is already built. (Upgrade function TBD)` });
+        return;
+    }
 
     // Deduct resources immediately
     setResources(prev => {
@@ -235,8 +254,10 @@ const ControlPanel: React.FC = () => {
         return newResources;
       });
 
-       // Add building to the set of built buildings
+       // Add building to the set of built buildings and set its initial level
        setBuiltBuildings(prev => new Set(prev).add(building.id));
+       setBuildingLevels(prev => ({ ...prev, [building.id]: building.level ?? 1 })); // Set level on completion
+
 
        // Remove from constructing state and progress
        setConstructing(prev => {
@@ -380,10 +401,12 @@ const ControlPanel: React.FC = () => {
                           <SidebarMenu className="p-0 gap-1">
                               {groupedBuildings[category].map((building) => {
                                   const isConstructing = !!constructing[building.id];
-                                  const isBuilt = builtBuildings.has(building.id); // Check if already built
+                                  const currentLevel = buildingLevels[building.id]; // Get current level from state
+                                  const isBuilt = builtBuildings.has(building.id); // Check if already built (at any level)
                                   const progress = constructionProgress[building.id] ?? 0;
                                   const requirementsMet = areRequirementsMet(building.requires); // Check requirements for build button itself
-                                  // Disable if not enough resources, is constructing, already built (for non-upgradable for now), or requirements not met
+                                  // Disable if not enough resources, is constructing, already built (for initial build), or requirements not met
+                                  // Upgrade logic TBD - for now, 'Build' button is disabled if built.
                                   const isDisabled = !hasEnoughResources(building.cost, resources) || isConstructing || isBuilt || !requirementsMet;
 
                                   return (
@@ -403,7 +426,8 @@ const ControlPanel: React.FC = () => {
                                                           <div className="flex items-center gap-2 flex-1 min-w-0">
                                                               <building.icon className="w-5 h-5 text-muted-foreground flex-shrink-0" />
                                                               <div className="flex-1 min-w-0">
-                                                                  <p className="text-sm font-medium truncate">{building.name} {building.level && `(Lvl ${building.level})`}</p>
+                                                                  {/* Display current level if built, otherwise base level */}
+                                                                  <p className="text-sm font-medium truncate">{building.name} {currentLevel ? `(Lvl ${currentLevel})` : ''}</p>
                                                                   <div className="text-xs text-muted-foreground truncate flex items-center flex-wrap">
                                                                       <span className="mr-1">Cost:</span> {formatCostWithIcons(building.cost)}
                                                                   </div>
@@ -420,6 +444,7 @@ const ControlPanel: React.FC = () => {
                                                                   )}
                                                               </div>
                                                           </div>
+                                                          {/* TODO: Change button to 'Upgrade' when built */}
                                                           <Button
                                                               size="sm"
                                                               onClick={() => handleBuild(building)}
@@ -432,16 +457,18 @@ const ControlPanel: React.FC = () => {
                                                   </Card>
                                               </TooltipTrigger>
                                               <TooltipContent side="right" align="start" className="max-w-xs">
-                                                  <p className="font-semibold">{building.name} {building.level && `(Lvl ${building.level})`}</p>
+                                                  {/* Show current level in tooltip if built */}
+                                                   <p className="font-semibold">{building.name} {currentLevel ? `(Lvl ${currentLevel})` : `(Lvl ${building.level ?? 1})`}</p>
                                                   <p className="text-sm text-muted-foreground mb-2">{building.description}</p>
                                                   <div className="text-sm space-y-1">
+                                                      {/* Display cost for next level if upgradable, else initial cost */}
                                                       <p>Cost: {formatCostWithIcons(building.cost)}</p>
                                                       <p>Build Time: {building.constructionTime / 1000}s</p>
                                                       {building.energyCost && <p>Energy Consumption: {building.energyCost}</p>}
                                                       {building.energyProduction && <p>Energy Production: {building.energyProduction}</p>}
                                                       {building.requires && <p className={cn("text-amber-400", !requirementsMet && "text-destructive/80")}>Requires: {Array.isArray(building.requires) ? building.requires.join(', ') : building.requires}</p>}
                                                   </div>
-                                                   {isBuilt && <p className="text-xs text-primary mt-2">Already built.</p>}
+                                                   {isBuilt && <p className="text-xs text-primary mt-2">Already built. (Upgrade TBD)</p>}
                                                   {isConstructing && (
                                                       <div className="mt-2">
                                                           <p className="text-xs text-primary">Construction in progress...</p>
@@ -605,7 +632,8 @@ const ControlPanel: React.FC = () => {
                      <ul className="list-disc list-inside text-xs">
                           {[...builtBuildings].map(id => {
                               const building = availableBuildings.find(b => b.id === id);
-                              return building ? <li key={id}>{building.name}</li> : null;
+                              const level = buildingLevels[id]; // Get level from state
+                              return building ? <li key={id}>{building.name} {level ? `(Lvl ${level})` : ''}</li> : null;
                           })}
                      </ul>
                     </CardContent>
@@ -625,3 +653,5 @@ const ControlPanel: React.FC = () => {
 
 export default ControlPanel;
 
+
+    
