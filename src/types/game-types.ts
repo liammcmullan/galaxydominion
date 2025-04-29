@@ -18,7 +18,7 @@ export enum OreType {
 export type SectorType = 'empty' | 'planet' | 'star' | 'anomaly' | 'player_colony' | 'ai_colony';
 
 // Define building categories
-export type BuildingCategory = 'Core' | 'Production' | 'Power' | 'Defense' | 'Utility' | 'Shipyard';
+export type BuildingCategory = 'Core' | 'Production' | 'Power' | 'Defense' | 'Utility' | 'Shipyard' | 'Storage'; // Added 'Storage'
 
 // Define the structure for a sector in the galaxy map
 export interface Sector {
@@ -32,10 +32,8 @@ export interface Sector {
   oreAmount?: number; // Amount of ore on planets
 }
 
-// Define the structure for resource tracking
-export type Resources = {
-    [key in OreType]?: number; // Track each ore type
-} & {
+// Define the structure for resource tracking (current amounts)
+export type Resources = Partial<Record<OreType, number>> & {
     Energy?: { production: number; consumption: number; balance: number }; // Optional: Track energy balance
     // Add other resources like Credits, Population later
 };
@@ -58,8 +56,12 @@ export interface Building {
   requires?: string | string[]; // Research or other building requirement (can be single or multiple)
   baseConstructionTime: number; // Base time to build level 1 in milliseconds
   timeMultiplier?: number; // Multiplier per level (e.g., 1.5)
-  oreTarget?: OreType; // Specific ore this building targets (e.g., for refineries)
+  oreTarget?: OreType; // Specific ore this building targets (e.g., for refineries or storage)
   baseProductionRate?: number; // Base production rate per second for level 1 (for Production buildings)
+  // Capacity related fields
+  baseInitialCapacity?: Partial<Record<OreType, number>>; // Base capacity provided by level 1 (mainly for Colony Hub)
+  baseCapacityIncrease?: number; // Capacity provided by level 1 (mainly for Storage tanks)
+  capacityMultiplier?: number; // How capacity scales per level (defaults to costMultiplier or a standard value)
 }
 
 export interface ShipType {
@@ -97,4 +99,7 @@ export interface ConstructionProgress {
 
 // Template function for ore refinery descriptions
 export const getOreRefineryDescription = (oreType: OreType) => `Extracts ${oreType} ore from the planet. Upgrading increases extraction speed.`;
+
+// Template function for storage tank descriptions
+export const getOreStorageDescription = (oreType: OreType) => `Increases storage capacity for ${oreType}. Upgrading increases capacity further.`;
 
