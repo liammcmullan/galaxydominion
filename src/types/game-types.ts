@@ -14,6 +14,9 @@ export enum OreType {
     Uranium = 'Uranium',
 }
 
+// Define richness levels for ores on a sector
+export type OreRichness = 'rich' | 'poor' | 'trace' | 'none';
+
 // Define sector types
 export type SectorType = 'empty' | 'planet' | 'star' | 'anomaly' | 'player_colony' | 'ai_colony';
 
@@ -28,8 +31,8 @@ export interface Sector {
   y: number;
   isVisible: boolean; // Is the sector currently visible (not fog)?
   isExplored: boolean; // Has the sector's content been revealed?
-  oreType?: OreType | null; // Type of ore on planets
-  oreAmount?: number; // Amount of ore on planets
+  oreDeposits: Partial<Record<OreType, { amount: number; richness: OreRichness }>>; // Ores present and their richness/amount
+  // Removed oreType and oreAmount, replaced by oreDeposits
 }
 
 // Define the structure for resource tracking (current amounts)
@@ -57,7 +60,7 @@ export interface Building {
   baseConstructionTime: number; // Base time to build level 1 in milliseconds
   timeMultiplier?: number; // Multiplier per level (e.g., 1.5)
   oreTarget?: OreType; // Specific ore this building targets (e.g., for refineries or storage)
-  baseProductionRate?: number; // Base production rate per second for level 1 (for Production buildings)
+  baseProductionRate?: number; // Base production rate per second for level 1 (for Production buildings) - Represents rate on 'rich' deposit
   // Capacity related fields
   baseInitialCapacity?: Partial<Record<OreType, number>>; // Base capacity provided by level 1 (mainly for Colony Hub)
   baseCapacityIncrease?: number; // Capacity provided by level 1 (mainly for Storage tanks)
@@ -98,8 +101,9 @@ export interface ConstructionProgress {
 }
 
 // Template function for ore refinery descriptions
-export const getOreRefineryDescription = (oreType: OreType) => `Extracts ${oreType} ore from the planet. Upgrading increases extraction speed.`;
+export const getOreRefineryDescription = (oreType: OreType) => `Extracts ${oreType} ore from the planet. Efficiency depends on ore richness. Upgrading increases base extraction speed.`;
 
 // Template function for storage tank descriptions
 export const getOreStorageDescription = (oreType: OreType) => `Increases storage capacity for ${oreType}. Upgrading increases capacity further.`;
+
 

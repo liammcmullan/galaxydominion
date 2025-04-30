@@ -12,7 +12,7 @@ import { SidebarHeader, SidebarContent, SidebarFooter, SidebarGroup, SidebarGrou
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from '@/lib/utils';
 import { useToast } from "@/hooks/use-toast"; // Import useToast
-import type { Building, ShipType, ResearchItem, Resources, OreType, ConstructionProgress, BuildingCategory } from '@/types/game-types';
+import type { Building, ShipType, ResearchItem, Resources, OreType, ConstructionProgress, BuildingCategory, OreRichness, Sector } from '@/types/game-types'; // Import Sector and OreRichness
 import { OreType as OreTypeEnum, getOreRefineryDescription, getOreStorageDescription } from '@/types/game-types'; // Import enum and description function
 
 // Define Building Categories
@@ -25,12 +25,12 @@ const availableBuildings: Building[] = [
   { id: 'colony_hub', name: 'Colony Hub', category: 'Core', description: 'Central structure. Upgrading allows more buildings and increases base storage.', baseCost: { [OreTypeEnum.Iron]: 100 }, icon: Factory, level: 1, baseConstructionTime: 10000, maxLevel: 5, costMultiplier: 1.8, timeMultiplier: 1.6, baseInitialCapacity: { [OreTypeEnum.Iron]: 1000, [OreTypeEnum.Copper]: 500, [OreTypeEnum.Gold]: 200, [OreTypeEnum.Titanium]: 1000, [OreTypeEnum.Uranium]: 100 }, capacityMultiplier: 1.7 }, // 10 seconds base, Added initial capacity + multiplier
   { id: 'colony_expansion', name: 'Colony Expansion', category: 'Core', description: 'Increases population cap and worker allocation.', baseCost: { [OreTypeEnum.Iron]: 200, [OreTypeEnum.Titanium]: 20 }, icon: Users, level: 1, baseConstructionTime: 20000, maxLevel: 3, costMultiplier: 2.0, timeMultiplier: 1.8 },
 
-  // Production (Specific Refineries) - Added baseProductionRate
-  { id: 'iron_refinery', name: 'Iron Refinery', category: 'Production', description: getOreRefineryDescription(OreTypeEnum.Iron), oreTarget: OreTypeEnum.Iron, baseCost: { [OreTypeEnum.Iron]: 50, [OreTypeEnum.Copper]: 10 }, icon: Package, level: 1, baseEnergyCost: 5, baseConstructionTime: 6000, maxLevel: 5, costMultiplier: 1.5, timeMultiplier: 1.4, baseProductionRate: 1 },
-  { id: 'copper_refinery', name: 'Copper Refinery', category: 'Production', description: getOreRefineryDescription(OreTypeEnum.Copper), oreTarget: OreTypeEnum.Copper, baseCost: { [OreTypeEnum.Iron]: 60, [OreTypeEnum.Copper]: 25 }, icon: Package, level: 1, baseEnergyCost: 6, baseConstructionTime: 7000, maxLevel: 5, costMultiplier: 1.6, timeMultiplier: 1.4, baseProductionRate: 0.8 },
-  { id: 'gold_refinery', name: 'Gold Refinery', category: 'Production', description: getOreRefineryDescription(OreTypeEnum.Gold), oreTarget: OreTypeEnum.Gold, baseCost: { [OreTypeEnum.Iron]: 100, [OreTypeEnum.Copper]: 40, [OreTypeEnum.Gold]: 5 }, icon: Package, level: 1, baseEnergyCost: 8, baseConstructionTime: 12000, maxLevel: 5, costMultiplier: 1.8, timeMultiplier: 1.5, baseProductionRate: 0.2 },
-  { id: 'titanium_refinery', name: 'Titanium Refinery', category: 'Production', description: getOreRefineryDescription(OreTypeEnum.Titanium), oreTarget: OreTypeEnum.Titanium, baseCost: { [OreTypeEnum.Iron]: 150, [OreTypeEnum.Titanium]: 30 }, icon: Package, level: 1, baseEnergyCost: 10, baseConstructionTime: 15000, maxLevel: 5, costMultiplier: 1.7, timeMultiplier: 1.5, baseProductionRate: 0.5 },
-  { id: 'uranium_refinery', name: 'Uranium Refinery', category: 'Production', description: getOreRefineryDescription(OreTypeEnum.Uranium), oreTarget: OreTypeEnum.Uranium, baseCost: { [OreTypeEnum.Titanium]: 100, [OreTypeEnum.Uranium]: 10 }, icon: Package, level: 1, baseEnergyCost: 12, requires: 'Research: Nuclear Power', baseConstructionTime: 25000, maxLevel: 5, costMultiplier: 2.0, timeMultiplier: 1.6, baseProductionRate: 0.1 },
+  // Production (Specific Refineries) - Added baseProductionRate (assuming 'rich' deposit)
+  { id: 'iron_refinery', name: 'Iron Refinery', category: 'Production', description: getOreRefineryDescription(OreTypeEnum.Iron), oreTarget: OreTypeEnum.Iron, baseCost: { [OreTypeEnum.Iron]: 50, [OreTypeEnum.Copper]: 10 }, icon: Package, level: 1, baseEnergyCost: 5, baseConstructionTime: 6000, maxLevel: 5, costMultiplier: 1.5, timeMultiplier: 1.4, baseProductionRate: 1.0 }, // 1/s on rich
+  { id: 'copper_refinery', name: 'Copper Refinery', category: 'Production', description: getOreRefineryDescription(OreTypeEnum.Copper), oreTarget: OreTypeEnum.Copper, baseCost: { [OreTypeEnum.Iron]: 60, [OreTypeEnum.Copper]: 25 }, icon: Package, level: 1, baseEnergyCost: 6, baseConstructionTime: 7000, maxLevel: 5, costMultiplier: 1.6, timeMultiplier: 1.4, baseProductionRate: 0.8 }, // 0.8/s on rich
+  { id: 'gold_refinery', name: 'Gold Refinery', category: 'Production', description: getOreRefineryDescription(OreTypeEnum.Gold), oreTarget: OreTypeEnum.Gold, baseCost: { [OreTypeEnum.Iron]: 100, [OreTypeEnum.Copper]: 40, [OreTypeEnum.Gold]: 5 }, icon: Package, level: 1, baseEnergyCost: 8, baseConstructionTime: 12000, maxLevel: 5, costMultiplier: 1.8, timeMultiplier: 1.5, baseProductionRate: 0.2 }, // 0.2/s on rich
+  { id: 'titanium_refinery', name: 'Titanium Refinery', category: 'Production', description: getOreRefineryDescription(OreTypeEnum.Titanium), oreTarget: OreTypeEnum.Titanium, baseCost: { [OreTypeEnum.Iron]: 150, [OreTypeEnum.Titanium]: 30 }, icon: Package, level: 1, baseEnergyCost: 10, baseConstructionTime: 15000, maxLevel: 5, costMultiplier: 1.7, timeMultiplier: 1.5, baseProductionRate: 0.5 }, // 0.5/s on rich
+  { id: 'uranium_refinery', name: 'Uranium Refinery', category: 'Production', description: getOreRefineryDescription(OreTypeEnum.Uranium), oreTarget: OreTypeEnum.Uranium, baseCost: { [OreTypeEnum.Titanium]: 100, [OreTypeEnum.Uranium]: 10 }, icon: Package, level: 1, baseEnergyCost: 12, requires: 'Research: Nuclear Power', baseConstructionTime: 25000, maxLevel: 5, costMultiplier: 2.0, timeMultiplier: 1.6, baseProductionRate: 0.1 }, // 0.1/s on rich
 
   // Storage
   { id: 'iron_storage', name: 'Iron Storage Tank', category: 'Storage', description: getOreStorageDescription(OreTypeEnum.Iron), oreTarget: OreTypeEnum.Iron, baseCost: { [OreTypeEnum.Iron]: 40 }, icon: Cylinder, level: 1, baseCapacityIncrease: 500, capacityMultiplier: 1.8, baseEnergyCost: 1, baseConstructionTime: 5000, maxLevel: 5, costMultiplier: 1.4, timeMultiplier: 1.3 },
@@ -98,11 +98,32 @@ const calculateEnergy = (baseEnergy: number | undefined, level: number, multipli
 };
 
 // Calculate production rate for a specific level (e.g., for refineries)
+// This rate assumes 'rich' deposit and 100% energy efficiency
 const calculateProductionRate = (baseRate: number | undefined, level: number, multiplier: number = 1): number => {
     if (baseRate === undefined) return 0;
     // Using costMultiplier for rate increase, adjust if needed
     const rateMultiplier = multiplier;
     return parseFloat((baseRate * Math.pow(rateMultiplier, level - 1)).toFixed(2)); // Limit decimals
+};
+
+// NEW: Calculate effective production rate based on richness and efficiency
+const calculateEffectiveProductionRate = (
+    baseRate: number | undefined,
+    level: number,
+    multiplier: number = 1,
+    richness: OreRichness,
+    efficiency: number
+): number => {
+    const levelRate = calculateProductionRate(baseRate, level, multiplier);
+    let richnessMultiplier = 0;
+    switch (richness) {
+        case 'rich': richnessMultiplier = 1.0; break;
+        case 'poor': richnessMultiplier = 0.3; break; // 30% effectiveness
+        case 'trace': richnessMultiplier = 0.05; break; // 5% effectiveness
+        case 'none': richnessMultiplier = 0; break;
+        default: richnessMultiplier = 0;
+    }
+    return parseFloat((levelRate * richnessMultiplier * efficiency).toFixed(2));
 };
 
 // Calculate capacity increase for a specific level
@@ -136,7 +157,7 @@ const formatCostWithIcons = (cost: Partial<Record<OreType, number>>): React.Reac
         if (amount === undefined || amount <= 0) return null; // Don't display if cost is 0 or undefined
         return (
             <span key={ore} className="inline-flex items-center mr-2 whitespace-nowrap">
-                {getOreIcon(ore as OreType)}
+                {getOreIcon(ore as OreType, 'rich')} {/* Icon doesn't need richness here */}
                 <span className="ml-0.5">{amount}</span>
             </span>
         );
@@ -151,17 +172,28 @@ const hasEnoughResources = (cost: Partial<Record<OreType, number>>, currentResou
     });
 };
 
-// Helper to get ore icon
-const getOreIcon = (oreType: OreType) => {
-    const className = "w-3 h-3 inline-block";
+// Helper to get ore icon (richness mainly affects opacity/style)
+const getOreIcon = (oreType: OreType, richness: OreRichness) => {
+    let className = "w-3 h-3 inline-block";
+    let colorClass = "";
+    let iconComponent = Mountain; // Default
+
     switch (oreType) {
-        case OreTypeEnum.Iron: return <Mountain className={cn(className, "text-slate-500")} />;
-        case OreTypeEnum.Copper: return <Diamond className={cn(className, "text-orange-500")} />;
-        case OreTypeEnum.Gold: return <Diamond className={cn(className, "text-yellow-500")} />;
-        case OreTypeEnum.Titanium: return <Mountain className={cn(className, "text-gray-400")} />;
-        case OreTypeEnum.Uranium: return <Diamond className={cn(className, "text-green-500")} />;
+        case OreTypeEnum.Iron: colorClass = "text-slate-500"; iconComponent = Mountain; break;
+        case OreTypeEnum.Copper: colorClass = "text-orange-500"; iconComponent = Diamond; break;
+        case OreTypeEnum.Gold: colorClass = "text-yellow-500"; iconComponent = Diamond; break;
+        case OreTypeEnum.Titanium: colorClass = "text-gray-400"; iconComponent = Mountain; break;
+        case OreTypeEnum.Uranium: colorClass = "text-green-500"; iconComponent = Diamond; break;
         default: return null;
     }
+
+    // Adjust appearance based on richness (optional visual cue in UI elements)
+    if (richness === 'poor') className += " opacity-75";
+    if (richness === 'trace') className += " opacity-50";
+    // 'rich' and 'none' have default appearance or are handled elsewhere
+
+    const Icon = iconComponent;
+    return <Icon className={cn(className, colorClass)} />;
 };
 
 // Helper to format elapsed time
@@ -175,10 +207,38 @@ const formatTime = (totalSeconds: number): string => {
 
 // --- Component State and Logic ---
 
+// Placeholder function to get ore richness for the current colony's sector
+// In a real game, this would fetch data based on the selected colony/sector
+// For now, assume the starting sector (1,1) details.
+const getSectorOreRichness = (oreType: OreType): OreRichness => {
+    // TODO: Replace with actual data fetching based on colony location
+    const startSectorOres: Record<OreType, OreRichness> = {
+        [OreTypeEnum.Iron]: 'rich',
+        [OreTypeEnum.Copper]: 'poor',
+        [OreTypeEnum.Gold]: 'none',
+        [OreTypeEnum.Titanium]: 'trace',
+        [OreTypeEnum.Uranium]: 'none',
+    };
+    return startSectorOres[oreType] ?? 'none';
+};
+
+// Placeholder: Assume the ControlPanel controls the starting colony at (1,1)
+const selectedSector: Partial<Sector> = {
+    x: 1,
+    y: 1,
+    oreDeposits: {
+        [OreTypeEnum.Iron]: { amount: 8000, richness: 'rich'},
+        [OreTypeEnum.Copper]: { amount: 2000, richness: 'poor'},
+        [OreTypeEnum.Titanium]: { amount: 100, richness: 'trace'},
+        [OreTypeEnum.Gold]: { amount: 0, richness: 'none' },
+        [OreTypeEnum.Uranium]: { amount: 0, richness: 'none' },
+    }
+};
+
 const ControlPanel: React.FC = () => {
   const { toast } = useToast();
   const [gameTime, setGameTime] = useState(0); // Game time in seconds
-  const [lastUpdateTime, setLastUpdateTime] = useState(Date.now());
+  const [lastUpdateTime, setLastUpdateTime] = useState<number>(() => Date.now()); // Initialize with function
 
   // Placeholder state for resources
   const [resources, setResources] = useState<Resources>({
@@ -292,17 +352,28 @@ const ControlPanel: React.FC = () => {
 
       // --- Resource Generation ---
       const energyBalance = resources.Energy?.balance ?? 0;
-      const efficiency = energyBalance >= 0 ? 1 : Math.max(0, 1 + (energyBalance / (resources.Energy?.consumption || 1))); // Handle potential zero consumption
+      const energyConsumption = resources.Energy?.consumption ?? 1; // Avoid division by zero
+      const efficiency = energyBalance >= 0 ? 1 : Math.max(0, 1 + (energyBalance / energyConsumption)); // Calculate energy efficiency (0 to 1)
 
-      const generatedResources: Partial<Resources> = {};
+      const generatedResources: Partial<Record<OreType, number>> = {};
       builtBuildings.forEach(id => {
          const buildingDef = availableBuildings.find(b => b.id === id);
          const level = buildingLevels[id] ?? 1;
          // Only generate if it's a Production building, has a target ore, has a base rate, and is not constructing
          if (buildingDef?.category === 'Production' && buildingDef.oreTarget && buildingDef.baseProductionRate && !constructing[id]) {
-            const productionRate = calculateProductionRate(buildingDef.baseProductionRate, level, buildingDef.costMultiplier ?? 1);
-            const generatedAmount = productionRate * efficiency * deltaTime; // Apply efficiency and delta time
             const oreType = buildingDef.oreTarget;
+            const richness = selectedSector.oreDeposits?.[oreType]?.richness ?? 'none'; // Get richness from selected sector (replace with actual colony sector data)
+
+            // Calculate effective production rate based on level, richness, and energy efficiency
+            const effectiveRate = calculateEffectiveProductionRate(
+                buildingDef.baseProductionRate,
+                level,
+                buildingDef.costMultiplier ?? 1,
+                richness,
+                efficiency
+            );
+
+            const generatedAmount = effectiveRate * deltaTime; // Apply delta time
             generatedResources[oreType] = (generatedResources[oreType] ?? 0) + generatedAmount;
          }
       });
@@ -314,10 +385,14 @@ const ControlPanel: React.FC = () => {
              for (const ore in generatedResources) {
                  const oreT = ore as OreType;
                  const currentAmount = newResources[oreT] ?? 0;
-                 const capacity = storageCapacity[oreT] ?? 0; // Get capacity for this ore
+                 const capacity = storageCapacity[oreT] ?? calculateColonyHubInitialCapacity(availableBuildings.find(b=>b.id==='colony_hub')!, buildingLevels['colony_hub']??1)[oreT] ?? 0; // Get capacity for this ore including hub base
                  const generated = generatedResources[oreT]!;
                  // Add generated amount, but cap it at the storage limit
-                 newResources[oreT] = Math.min(capacity, currentAmount + generated);
+                 const newAmount = Math.min(capacity, currentAmount + generated);
+                 // Only update if the amount actually changes (prevents needless re-renders if capped)
+                 if (newAmount !== currentAmount) {
+                     newResources[oreT] = newAmount;
+                 }
              }
              return newResources;
          });
@@ -327,11 +402,19 @@ const ControlPanel: React.FC = () => {
        const nowForProgress = Date.now(); // Use consistent time for progress check
        const newProgress: Record<string, number> = {};
        let changed = false;
+       const completedConstructions: string[] = [];
+
        for (const buildingId in constructing) {
          const progressData = constructing[buildingId];
          if (progressData) {
            const elapsed = nowForProgress - progressData.startTime;
-           const progress = Math.min(100, (elapsed / progressData.duration) * 100);
+           let progress = Math.min(100, (elapsed / progressData.duration) * 100);
+
+           if (progress >= 100) {
+               progress = 100; // Ensure it caps at 100
+               completedConstructions.push(buildingId);
+           }
+
            if (constructionProgress[buildingId] !== progress) {
              newProgress[buildingId] = progress;
              changed = true;
@@ -340,16 +423,64 @@ const ControlPanel: React.FC = () => {
            }
          }
        }
-       // Only update state if any progress actually changed
+       // Update progress state if needed
        if (changed) {
           setConstructionProgress(prev => ({ ...prev, ...newProgress })); // Merge updates
+       }
+
+       // --- Handle Completed Constructions ---
+       if (completedConstructions.length > 0) {
+            // Use functional updates to avoid stale state issues
+            setBuiltBuildings(prevBuilt => {
+                const newBuilt = new Set(prevBuilt);
+                completedConstructions.forEach(id => {
+                    const data = constructing[id];
+                    if(data && data.targetLevel === 1) { // Only add if it was the first build
+                        newBuilt.add(id);
+                    }
+                });
+                return newBuilt;
+            });
+
+            setBuildingLevels(prevLevels => {
+                const newLevels = { ...prevLevels };
+                completedConstructions.forEach(id => {
+                    const data = constructing[id];
+                    if (data) {
+                        newLevels[id] = data.targetLevel;
+                        // Toast for completion
+                        toast({
+                            title: `${data.targetLevel === 1 ? 'Construction' : 'Upgrade'} Complete`,
+                            description: `${availableBuildings.find(b => b.id === id)?.name ?? id} reached Level ${data.targetLevel}.`,
+                            variant: "default",
+                        });
+                    }
+                });
+                return newLevels;
+            });
+
+            setConstructing(prevConstructing => {
+                const newConstructing = { ...prevConstructing };
+                completedConstructions.forEach(id => {
+                    delete newConstructing[id];
+                });
+                return newConstructing;
+            });
+
+            setConstructionProgress(prevProgress => {
+                const newProg = { ...prevProgress };
+                completedConstructions.forEach(id => {
+                    delete newProg[id];
+                });
+                return newProg;
+            });
        }
 
 
     }, 1000); // Run every 1000ms (1 second)
 
     return () => clearInterval(gameLoop); // Cleanup on unmount
-  }, [lastUpdateTime, resources.Energy, builtBuildings, buildingLevels, constructing, constructionProgress, storageCapacity]); // Include dependencies
+  }, [lastUpdateTime, resources.Energy, builtBuildings, buildingLevels, constructing, constructionProgress, storageCapacity, toast]); // Add toast to dependencies
 
 
   // Hook to force re-render (use sparingly)
@@ -379,7 +510,7 @@ const ControlPanel: React.FC = () => {
     const maxLevel = building.maxLevel ?? 1; // Default max level is 1 if not specified
 
     if (targetLevel > maxLevel) {
-        toast({ title: "Max Level Reached", description: `${building.name} is already at its maximum level (${maxLevel}).` });
+        toast({ title: "Max Level Reached", description: `${building.name} is already at its maximum level (${maxLevel}).`, variant: "default" });
         return;
     }
 
@@ -432,37 +563,9 @@ const ControlPanel: React.FC = () => {
       description: `${isBuilding ? 'Building' : 'Upgrading'} ${building.name} to Level ${targetLevel}...`,
     });
 
-    // --- Construction Timer ---
-    setTimeout(() => {
-       // Add building to built set if it was the first build
-        if (isBuilding) {
-            setBuiltBuildings(prev => new Set(prev).add(building.id));
-        }
-        // Update building level
-        setBuildingLevels(prev => ({ ...prev, [building.id]: targetLevel }));
+    // --- Timer for completion is handled by the main game loop ---
+    // The useEffect hook will update levels and remove from constructing when progress >= 100
 
-       // Remove from constructing state and progress AFTER level update
-       // Energy balance and storage capacity recalculation will happen automatically via useEffect
-       setConstructing(prev => {
-           const newState = { ...prev };
-           delete newState[building.id];
-           return newState;
-       });
-        setConstructionProgress(prev => {
-           const newState = { ...prev };
-           delete newState[building.id];
-           return newState;
-       });
-
-      toast({
-        title: `${isBuilding ? 'Construction' : 'Upgrade'} Complete`,
-        description: `${building.name} reached Level ${targetLevel}.`,
-        variant: "default",
-      });
-
-      forceUpdate(); // Force re-render to ensure UI updates correctly
-
-    }, timeForNextLevel); // Use calculated time for the target level
   };
 
   // --- Ship Building Logic ---
@@ -508,7 +611,7 @@ const ControlPanel: React.FC = () => {
      const maxLevel = research.maxLevel ?? 1;
 
      if (targetLevel > maxLevel) {
-         toast({ title: "Max Research Level Reached", description: `${research.name} is already at its maximum level (${maxLevel}).` });
+         toast({ title: "Max Research Level Reached", description: `${research.name} is already at its maximum level (${maxLevel}).`, variant: "default" });
          return;
      }
 
@@ -563,13 +666,21 @@ const ControlPanel: React.FC = () => {
            <SidebarGroupContent className="space-y-1 px-2 text-sm">
                  {Object.values(OreTypeEnum).map(ore => {
                       const currentAmount = Math.floor(resources[ore] ?? 0);
-                      const capacity = storageCapacity[ore] ?? 0;
+                      // Calculate capacity accurately including base hub capacity
+                      const hubDef = availableBuildings.find(b => b.id === 'colony_hub');
+                      const hubLevel = buildingLevels['colony_hub'] ?? 1;
+                      const hubCapacity = hubDef ? calculateColonyHubInitialCapacity(hubDef, hubLevel)[ore] ?? 0 : 0;
+                      const storageBuildingCapacity = storageCapacity[ore] ?? 0;
+                      const totalCapacity = hubCapacity + (storageBuildingCapacity - hubCapacity); // Avoid double counting hub base by subtracting it if storageCapacity already includes it (depends on recalculateStorageCapacity logic)
+                      // Simplified: const totalCapacity = storageCapacity[ore] ?? 0; // If recalculateStorageCapacity correctly sums hub + tanks
+
+                      const capacity = storageCapacity[ore] ?? 0; // Get combined capacity
                       const isFull = capacity > 0 && currentAmount >= capacity;
                       return (
                          <Tooltip key={ore}>
                              <TooltipTrigger asChild>
                                 <div className="flex justify-between items-center">
-                                    <span className="flex items-center">{getOreIcon(ore)}{ore}:</span>
+                                    <span className="flex items-center">{getOreIcon(ore, 'rich')}{ore}:</span> {/* Icon richness doesn't matter here */}
                                     <span className={cn(isFull && "text-destructive font-semibold")}>
                                         {currentAmount.toLocaleString()} / {capacity.toLocaleString()}
                                     </span>
@@ -628,7 +739,8 @@ const ControlPanel: React.FC = () => {
                                   const timeForNextLevel = calculateTime(buildingDef.baseConstructionTime, targetLevel, buildingDef.timeMultiplier);
                                   const energyCostNextLevel = calculateEnergy(buildingDef.baseEnergyCost, targetLevel, buildingDef.energyMultiplier ?? buildingDef.costMultiplier);
                                   const energyProdNextLevel = calculateEnergy(buildingDef.baseEnergyProduction, targetLevel, buildingDef.energyMultiplier ?? buildingDef.costMultiplier);
-                                  const prodRateNextLevel = calculateProductionRate(buildingDef.baseProductionRate, targetLevel, buildingDef.costMultiplier ?? 1); // Use costMultiplier for prod rate increase
+                                  // Base production rate (assumes rich & 100% efficiency)
+                                  const baseProdRateNextLevel = calculateProductionRate(buildingDef.baseProductionRate, targetLevel, buildingDef.costMultiplier ?? 1);
                                   const capacityIncreaseNextLevel = calculateCapacity(buildingDef.baseCapacityIncrease, targetLevel, buildingDef.capacityMultiplier ?? buildingDef.costMultiplier ?? 1.5); // Capacity for storage/hub
 
 
@@ -650,8 +762,20 @@ const ControlPanel: React.FC = () => {
 
                                   const currentEnergyCost = calculateEnergy(buildingDef.baseEnergyCost, currentLevel, buildingDef.energyMultiplier ?? buildingDef.costMultiplier);
                                   const currentEnergyProd = calculateEnergy(buildingDef.baseEnergyProduction, currentLevel, buildingDef.energyMultiplier ?? buildingDef.costMultiplier);
-                                  const currentProdRate = calculateProductionRate(buildingDef.baseProductionRate, currentLevel, buildingDef.costMultiplier ?? 1);
+                                  const currentBaseProdRate = calculateProductionRate(buildingDef.baseProductionRate, currentLevel, buildingDef.costMultiplier ?? 1);
                                   const currentCapacityIncrease = calculateCapacity(buildingDef.baseCapacityIncrease, currentLevel, buildingDef.capacityMultiplier ?? buildingDef.costMultiplier ?? 1.5); // For storage/hub
+
+                                   // Calculate current effective production rate for display
+                                   let currentEffectiveProdRate = 0;
+                                   if (buildingDef.category === 'Production' && buildingDef.oreTarget && currentBaseProdRate > 0 && !isConstructing) {
+                                        const richness = selectedSector.oreDeposits?.[buildingDef.oreTarget]?.richness ?? 'none';
+                                        const energyBalance = resources.Energy?.balance ?? 0;
+                                        const energyConsumption = resources.Energy?.consumption ?? 1;
+                                        const efficiency = energyBalance >= 0 ? 1 : Math.max(0, 1 + (energyBalance / energyConsumption));
+                                        currentEffectiveProdRate = calculateEffectiveProductionRate(
+                                            buildingDef.baseProductionRate, currentLevel, buildingDef.costMultiplier ?? 1, richness, efficiency
+                                        );
+                                   }
 
                                   return (
                                       <SidebarMenuItem key={buildingDef.id} className="p-0">
@@ -687,17 +811,17 @@ const ControlPanel: React.FC = () => {
                                                                           Energy: {currentEnergyProd > 0 ? <span className="text-[hsl(var(--chart-1))]">{`+${currentEnergyProd}`}</span> : (currentEnergyCost > 0 ? <span className="text-destructive">{`-${currentEnergyCost}`}</span> : '0')}
                                                                       </p>
                                                                   ) : null}
-                                                                   {/* Show current production rate */}
-                                                                   {currentProdRate > 0 && !isConstructing && (
+                                                                   {/* Show current EFFECTIVE production rate */}
+                                                                   {currentEffectiveProdRate > 0 && (
                                                                        <p className="text-xs text-muted-foreground truncate">
-                                                                           {buildingDef.oreTarget} Prod: +{currentProdRate}/s
+                                                                           {buildingDef.oreTarget} Prod: +{currentEffectiveProdRate}/s
                                                                        </p>
                                                                    )}
                                                                    {/* Show current capacity increase */}
                                                                    {currentCapacityIncrease > 0 && !isConstructing && (
                                                                        <p className="text-xs text-muted-foreground truncate">
                                                                             {buildingDef.oreTarget ? `${buildingDef.oreTarget} Cap: +${currentCapacityIncrease.toLocaleString()}` : ''}
-                                                                            {buildingDef.baseInitialCapacity && Object.keys(buildingDef.baseInitialCapacity).length > 0 && 'Base Cap: +'} {/* Hub specific */}
+                                                                            {buildingDef.id === 'colony_hub' && buildingDef.baseInitialCapacity && Object.keys(buildingDef.baseInitialCapacity).length > 0 && 'Base Cap: +'} {/* Hub specific */}
                                                                        </p>
                                                                    )}
                                                                   {isConstructing && (
@@ -727,7 +851,13 @@ const ControlPanel: React.FC = () => {
                                                                 <p className="font-medium">Current Level ({currentLevel}):</p>
                                                                 {currentEnergyCost > 0 && <p>Energy Cost: {currentEnergyCost}</p>}
                                                                 {currentEnergyProd > 0 && <p>Energy Prod: {currentEnergyProd}</p>}
-                                                                {currentProdRate > 0 && <p>{buildingDef.oreTarget} Prod Rate: {currentProdRate}/s</p>}
+                                                                {/* Show EFFECTIVE production rate in tooltip too */}
+                                                                {currentEffectiveProdRate > 0 && buildingDef.oreTarget && (
+                                                                    <p>
+                                                                        {buildingDef.oreTarget} Prod Rate: {currentEffectiveProdRate}/s
+                                                                        <span className="text-muted-foreground ml-1">({getSectorOreRichness(buildingDef.oreTarget)} deposit)</span>
+                                                                    </p>
+                                                                 )}
                                                                 {currentCapacityIncrease > 0 && buildingDef.category === 'Storage' && <p>{buildingDef.oreTarget} Capacity: +{currentCapacityIncrease.toLocaleString()}</p>}
                                                                  {buildingDef.id === 'colony_hub' && buildingDef.baseInitialCapacity && (
                                                                     <>
@@ -747,7 +877,8 @@ const ControlPanel: React.FC = () => {
                                                               <p>Build Time: {timeForNextLevel / 1000}s</p>
                                                               {energyCostNextLevel > 0 && <p>Energy Cost: {energyCostNextLevel}</p>}
                                                               {energyProdNextLevel > 0 && <p>Energy Prod: {energyProdNextLevel}</p>}
-                                                              {prodRateNextLevel > 0 && <p>{buildingDef.oreTarget} Prod Rate: {prodRateNextLevel}/s</p>}
+                                                              {/* Show BASE production rate for next level (richness independent) */}
+                                                              {baseProdRateNextLevel > 0 && <p>{buildingDef.oreTarget} Base Prod Rate: {baseProdRateNextLevel}/s (on 'rich')</p>}
                                                                {capacityIncreaseNextLevel > 0 && buildingDef.category === 'Storage' && <p>{buildingDef.oreTarget} Capacity: +{capacityIncreaseNextLevel.toLocaleString()}</p>}
                                                                {buildingDef.id === 'colony_hub' && buildingDef.baseInitialCapacity && (
                                                                    <>
@@ -956,7 +1087,7 @@ const ControlPanel: React.FC = () => {
                 <TabsContent value="colony" className="mt-0">
                 <Card className="bg-card/50">
                     <CardHeader>
-                    <CardTitle className="text-base">Colony Status</CardTitle>
+                    <CardTitle className="text-base">Colony Status (Sector {selectedSector?.x ?? '?'}, {selectedSector?.y ?? '?'})</CardTitle> {/* Show sector coords */}
                     </CardHeader>
                     <CardContent className="text-sm space-y-2">
                     <p>Population: 100 / 150 (Placeholder)</p>
@@ -964,36 +1095,45 @@ const ControlPanel: React.FC = () => {
                      <h5 className="font-semibold pt-2 border-t border-border/50 mt-2">Ore Production</h5>
                       <ul className="list-disc list-inside text-xs">
                          {Object.values(OreTypeEnum).map(ore => {
-                              let totalRate = 0;
+                              let totalEffectiveRate = 0;
+                              let hasRefinery = false;
                               builtBuildings.forEach(id => {
                                   const buildingDef = availableBuildings.find(b => b.id === id);
                                   const level = buildingLevels[id] ?? 1;
                                   if (buildingDef?.category === 'Production' && buildingDef.oreTarget === ore && buildingDef.baseProductionRate && !constructing[id]) {
-                                      totalRate += calculateProductionRate(buildingDef.baseProductionRate, level, buildingDef.costMultiplier ?? 1);
+                                        hasRefinery = true;
+                                        const richness = selectedSector.oreDeposits?.[ore]?.richness ?? 'none';
+                                        const energyBalance = resources.Energy?.balance ?? 0;
+                                        const energyConsumption = resources.Energy?.consumption ?? 1;
+                                        const efficiency = energyBalance >= 0 ? 1 : Math.max(0, 1 + (energyBalance / energyConsumption));
+                                        totalEffectiveRate += calculateEffectiveProductionRate(
+                                            buildingDef.baseProductionRate, level, buildingDef.costMultiplier ?? 1, richness, efficiency
+                                        );
                                   }
                               });
-                              const energyBalance = resources.Energy?.balance ?? 0;
-                              const efficiency = energyBalance >= 0 ? 1 : Math.max(0, 1 + (energyBalance / (resources.Energy?.consumption || 1)));
-                              const effectiveRate = (totalRate * efficiency);
 
                               // Check if storage is full for this ore
                               const currentAmount = resources[ore] ?? 0;
                               const capacity = storageCapacity[ore] ?? 0;
                               const isStorageFull = capacity > 0 && currentAmount >= capacity;
+                              const oreRichness = selectedSector.oreDeposits?.[ore]?.richness ?? 'none';
 
 
-                              if (totalRate > 0) {
-                                return <li key={ore} className={cn(isStorageFull && "text-destructive")}>
-                                            {getOreIcon(ore)}{ore}: +{effectiveRate.toFixed(2)}/s
-                                            {efficiency < 1 && <span className="text-destructive ml-1">({Math.round(efficiency*100)}% eff.)</span>}
+                              if (hasRefinery) { // Only show if a refinery exists for this ore
+                                return <li key={ore} className={cn((isStorageFull || oreRichness === 'none') && "text-destructive")}>
+                                            {getOreIcon(ore, oreRichness)}{ore}: +{totalEffectiveRate.toFixed(2)}/s
+                                            {oreRichness !== 'rich' && <span className="text-muted-foreground ml-1 capitalize">({oreRichness})</span>}
+                                            {resources.Energy && resources.Energy.balance < 0 && <span className="text-destructive ml-1">({Math.round((resources.Energy.production / (resources.Energy.consumption || 1))*100)}% eff.)</span>}
                                             {isStorageFull && <span className="text-destructive ml-1">(Storage Full)</span>}
+                                            {oreRichness === 'none' && <span className="text-destructive ml-1">(No Deposit)</span>}
                                        </li>;
                               }
                               return null;
                          }).filter(Boolean)}
-                         {Object.values(OreTypeEnum).every(ore => { /* Check if any production building exists */
-                             return ![...builtBuildings].some(id => availableBuildings.find(b => b.id === id)?.oreTarget === ore);
-                         }) && <li className="italic text-muted-foreground">Build refineries to produce ore.</li>}
+                         {/* Check if *any* production building exists */}
+                          {!([...builtBuildings].some(id => availableBuildings.find(b => b.id === id)?.category === 'Production')) && (
+                            <li className="italic text-muted-foreground">Build refineries to produce ore.</li>
+                          )}
                       </ul>
 
                      <h5 className="font-semibold pt-2 border-t border-border/50 mt-2">Built Structures</h5>

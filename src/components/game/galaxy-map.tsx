@@ -6,38 +6,67 @@ import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { Globe, Star, HelpCircle, Loader, Diamond, Mountain, LocateFixed, CircleDotDashed, EyeOff } from 'lucide-react'; // Added Diamond, Mountain, LocateFixed, CircleDotDashed, EyeOff
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"; // Import Tooltip components
-import type { Sector, SectorType, OreType } from '@/types/game-types'; // Import types
+import type { Sector, SectorType, OreType, OreRichness } from '@/types/game-types'; // Import types including OreRichness
 import { OreType as OreTypeEnum } from '@/types/game-types'; // Import enum for generation logic
 
-// Function to generate grid data with fog of war and ores
+// Function to generate grid data with fog of war and ore deposits
 const generateGridData = (size = 15): Sector[][] => {
   const grid: Sector[][] = [];
-  const oreTypes = Object.values(OreTypeEnum);
+  const allOreTypes = Object.values(OreTypeEnum);
 
   for (let y = 0; y < size; y++) {
     grid[y] = [];
     for (let x = 0; x < size; x++) {
       const id = `${x}-${y}`;
       let type: SectorType = 'empty';
-      let oreType: OreType | null = null;
-      let oreAmount: number | undefined = undefined;
+      const oreDeposits: Sector['oreDeposits'] = {}; // Initialize empty deposits
       const rand = Math.random();
 
-      if (rand < 0.05) { // Reduced star chance
+      if (rand < 0.04) { // Reduced star chance
           type = 'star';
-      } else if (rand < 0.25) { // Increased planet chance slightly
+      } else if (rand < 0.28) { // Planet chance
           type = 'planet';
-          // Assign random ore type and amount to planets
-          const oreRand = Math.random();
-           // Skew towards more common ores (Iron, Copper)
-          if (oreRand < 0.4) oreType = OreTypeEnum.Iron;
-          else if (oreRand < 0.7) oreType = OreTypeEnum.Copper;
-          else if (oreRand < 0.85) oreType = OreTypeEnum.Titanium;
-          else if (oreRand < 0.95) oreType = OreTypeEnum.Gold;
-          else oreType = OreTypeEnum.Uranium; // Rarest
+          // Assign ore deposits to planets
+          const primaryOreRoll = Math.random();
+          let primaryOre: OreType;
+          let primaryRichness: OreRichness = 'rich';
+          let primaryAmount: number;
 
-          oreAmount = Math.floor(Math.random() * (oreType === OreTypeEnum.Uranium ? 300 : 900)) + 100; // Lower max for Uranium
-      } else if (rand < 0.28) { // Reduced anomaly chance
+          // Determine primary ore type (making rare ores rarer)
+          if (primaryOreRoll < 0.35) primaryOre = OreTypeEnum.Iron;
+          else if (primaryOreRoll < 0.65) primaryOre = OreTypeEnum.Copper;
+          else if (primaryOreRoll < 0.80) primaryOre = OreTypeEnum.Titanium; // Rare
+          else if (primaryOreRoll < 0.92) primaryOre = OreTypeEnum.Gold;
+          else primaryOre = OreTypeEnum.Uranium; // Very Rare
+
+          // Assign amount based on richness and type
+          primaryAmount = Math.floor(Math.random() * (primaryOre === OreTypeEnum.Uranium ? 1500 : 5000)) + 500; // Lower max for Uranium, base amounts
+          if (primaryRichness === 'rich') primaryAmount = Math.floor(primaryAmount * (1 + Math.random() * 0.5)); // Rich planets have more
+
+          oreDeposits[primaryOre] = { amount: primaryAmount, richness: primaryRichness };
+
+          // Add secondary/trace ores (excluding the primary one)
+          allOreTypes.filter(o => o !== primaryOre).forEach(secondaryOre => {
+              const secondaryRoll = Math.random();
+              let secondaryRichness: OreRichness = 'none';
+              let secondaryAmount = 0;
+
+              // Lower chance for secondary deposits, especially rare ones
+              const baseChance = (secondaryOre === OreTypeEnum.Titanium || secondaryOre === OreTypeEnum.Uranium) ? 0.1 : 0.4;
+              if (secondaryRoll < baseChance * 0.3) { // Poor deposit
+                  secondaryRichness = 'poor';
+                  secondaryAmount = Math.floor(Math.random() * (primaryAmount * 0.1)) + (primaryAmount * 0.02); // Much smaller amount
+              } else if (secondaryRoll < baseChance) { // Trace deposit
+                   secondaryRichness = 'trace';
+                   secondaryAmount = Math.floor(Math.random() * (primaryAmount * 0.05)) + (primaryAmount * 0.01); // Even smaller amount
+              }
+
+              if (secondaryRichness !== 'none') {
+                  oreDeposits[secondaryOre] = { amount: Math.max(1, secondaryAmount), richness: secondaryRichness }; // Ensure at least 1 unit
+              }
+          });
+
+      } else if (rand < 0.30) { // Reduced anomaly chance
           type = 'anomaly';
       }
 
@@ -48,8 +77,7 @@ const generateGridData = (size = 15): Sector[][] => {
         y,
         isVisible: false, // Default to not visible
         isExplored: false, // Default to not explored
-        oreType,
-        oreAmount,
+        oreDeposits,
       };
     }
   }
@@ -59,8 +87,13 @@ const generateGridData = (size = 15): Sector[][] => {
     const startX = 1;
     const startY = 1;
     grid[startY][startX].type = 'player_colony';
-    grid[startY][startX].oreType = OreTypeEnum.Iron; // Give starting colony some basic ore
-    grid[startY][startX].oreAmount = 1000;
+    // Ensure starting colony is rich in Iron and has some copper
+    grid[startY][startX].oreDeposits = {
+        [OreTypeEnum.Iron]: { amount: 8000 + Math.floor(Math.random() * 2000), richness: 'rich'},
+        [OreTypeEnum.Copper]: { amount: 2000 + Math.floor(Math.random() * 1000), richness: 'poor'},
+        [OreTypeEnum.Titanium]: { amount: 100 + Math.floor(Math.random() * 50), richness: 'trace'},
+    };
+
 
     // Make starting sector and adjacent sectors visible and explored
     for (let dy = -1; dy <= 1; dy++) {
@@ -82,34 +115,70 @@ const generateGridData = (size = 15): Sector[][] => {
      } while (Math.abs(aiX - startX) < size / 3 && Math.abs(aiY - startY) < size / 3 || grid[aiY][aiX].type !== 'empty'); // Ensure some distance and not overlapping features
 
      grid[aiY][aiX].type = 'ai_colony';
-     grid[aiY][aiX].oreType = OreTypeEnum.Iron; // Give AI some basic ore too
-     grid[aiY][aiX].oreAmount = 800;
+     // Give AI similar starting resources but potentially different richness
+     grid[aiY][aiX].oreDeposits = {
+        [OreTypeEnum.Iron]: { amount: 7000 + Math.floor(Math.random() * 1500), richness: Math.random() < 0.8 ? 'rich' : 'poor' },
+        [OreTypeEnum.Copper]: { amount: 1500 + Math.floor(Math.random() * 800), richness: Math.random() < 0.6 ? 'poor' : 'trace' },
+     };
      // AI colony starts hidden: isVisible = false, isExplored = false
 
   } else if (size > 0) {
      grid[0][0].type = 'player_colony';
      grid[0][0].isVisible = true;
      grid[0][0].isExplored = true;
-     grid[0][0].oreType = OreTypeEnum.Iron;
-     grid[0][0].oreAmount = 1000;
+     grid[0][0].oreDeposits = { [OreTypeEnum.Iron]: { amount: 5000, richness: 'rich' }};
   }
 
 
   return grid;
 };
 
-// Helper to get icon for ore type (used in tooltips and map)
-const getOreIcon = (oreType: OreType) => {
-    const className = "w-3 h-3 inline-block"; // Make icons slightly bigger for tooltip clarity
+// Helper to get icon for ore type
+const getOreIcon = (oreType: OreType, richness: OreRichness) => {
+    let className = "w-3 h-3 inline-block";
+    let colorClass = "";
+    let iconComponent = Mountain; // Default
+
     switch (oreType) {
-        case OreTypeEnum.Iron: return <Mountain className={cn(className, "text-slate-500")} />;
-        case OreTypeEnum.Copper: return <Diamond className={cn(className, "text-orange-500")} />;
-        case OreTypeEnum.Gold: return <Diamond className={cn(className, "text-yellow-500")} />;
-        case OreTypeEnum.Titanium: return <Mountain className={cn(className, "text-gray-400")} />;
-        case OreTypeEnum.Uranium: return <Diamond className={cn(className, "text-green-500")} />;
+        case OreTypeEnum.Iron: colorClass = "text-slate-500"; iconComponent = Mountain; break;
+        case OreTypeEnum.Copper: colorClass = "text-orange-500"; iconComponent = Diamond; break;
+        case OreTypeEnum.Gold: colorClass = "text-yellow-500"; iconComponent = Diamond; break;
+        case OreTypeEnum.Titanium: colorClass = "text-gray-400"; iconComponent = Mountain; break;
+        case OreTypeEnum.Uranium: colorClass = "text-green-500"; iconComponent = Diamond; break;
         default: return null;
     }
+
+    // Adjust appearance based on richness
+    if (richness === 'poor') className += " opacity-70";
+    if (richness === 'trace') className += " opacity-40";
+
+    const Icon = iconComponent;
+    return <Icon className={cn(className, colorClass)} />;
 };
+
+// Helper to get the primary (richest) ore type and richness for display
+const getPrimaryOreInfo = (deposits: Sector['oreDeposits']): { type: OreType; richness: OreRichness } | null => {
+    let primaryOre: OreType | null = null;
+    let primaryRichness: OreRichness = 'none';
+
+    for (const ore in deposits) {
+        const deposit = deposits[ore as OreType];
+        if (deposit) {
+            if (deposit.richness === 'rich') {
+                return { type: ore as OreType, richness: 'rich' }; // Rich is always primary
+            } else if (deposit.richness === 'poor' && primaryRichness !== 'rich') {
+                primaryOre = ore as OreType;
+                primaryRichness = 'poor';
+            } else if (deposit.richness === 'trace' && primaryRichness === 'none') {
+                primaryOre = ore as OreType;
+                primaryRichness = 'trace';
+            }
+        }
+    }
+
+    return primaryOre ? { type: primaryOre, richness: primaryRichness } : null;
+};
+
 
 const GalaxyMap: React.FC = () => {
   const gridSize = 15;
@@ -129,30 +198,38 @@ const GalaxyMap: React.FC = () => {
                     // Mark current sector as explored and visible
                     return { ...sector, isExplored: true, isVisible: true };
                 }
-                 // Optional: Reveal adjacent sectors as visible but not explored
+                 // Reveal adjacent sectors as visible but not explored (if not already visible)
                 if (Math.abs(rx - x) <= 1 && Math.abs(ry - y) <= 1 && !sector.isVisible) {
                      return { ...sector, isVisible: true };
                 }
                 return sector; // Return unchanged sector
             })
          );
+        // Update selected sector info if it's the one being explored
+         if (selectedSector?.x === x && selectedSector?.y === y) {
+              const exploredSector = newGrid[y]?.[x];
+              if(exploredSector) setSelectedSector(exploredSector);
+         }
         return newGrid;
     });
-  }, [gridSize]); // Dependency array ensures function stability unless gridSize changes
+  }, [selectedSector]); // Dependency array includes selectedSector
 
 
   useEffect(() => {
     // Wrap generation in effect to prevent server/client mismatch
      setIsLoading(true);
+     // Generate grid on component mount (client-side)
      const generatedGrid = generateGridData(gridSize);
      setGridData(generatedGrid);
      setIsLoading(false);
     // Simulate exploring the starting area after generation
     if (generatedGrid && generatedGrid[1] && generatedGrid[1][1]?.type === 'player_colony') {
-         exploreSector(1, 1); // Explore the starting colony sector
+         // Explore the starting colony sector (it's already visible and explored by generation logic)
+         // Optionally explore neighbors if generation logic didn't do it
+         // exploreSector(1, 1);
     }
 
-  }, [gridSize, exploreSector]); // Add exploreSector to dependency array
+  }, [gridSize]); // Run only once on mount based on gridSize
 
   const handleSectorClick = (sector: Sector) => {
     console.log(`Clicked sector: ${sector.id}, Type: ${sector.type}, Visible: ${sector.isVisible}, Explored: ${sector.isExplored}`);
@@ -161,7 +238,6 @@ const GalaxyMap: React.FC = () => {
         // If it's an unexplored but visible sector, initiate scan/explore
         if (!sector.isExplored) {
              console.log("Sector visible but not explored. Exploring...");
-             // Example: Update state to mark as explored
              exploreSector(sector.x, sector.y); // Call the exploration function
         }
     } else {
@@ -191,14 +267,21 @@ const GalaxyMap: React.FC = () => {
     }
 
     // Explored: Show full details
-    const oreIcon = sector.oreType ? getOreIcon(sector.oreType) : null;
+    const primaryOreInfo = getPrimaryOreInfo(sector.oreDeposits);
+    const oreIcon = primaryOreInfo ? getOreIcon(primaryOreInfo.type, primaryOreInfo.richness) : null;
     const mainIconSize = oreIcon ? "w-3 h-3" : "w-4 h-4"; // Make main icon smaller if ore icon is present
 
     switch (sector.type) {
       case 'planet':
+      case 'player_colony': // Also show primary ore for colonies
+      case 'ai_colony':
+         const baseColor = sector.type === 'player_colony' ? "text-teal-500" :
+                           sector.type === 'ai_colony' ? "text-red-500" :
+                           "text-blue-400"; // Planet color
+         const Icon = sector.type === 'planet' ? Globe : LocateFixed;
         return (
             <div className="flex flex-col items-center justify-center relative">
-                <Globe className={cn(mainIconSize, "text-blue-400")} />
+                <Icon className={cn(mainIconSize, baseColor)} />
                 {/* Position ore icon at bottom-right or similar */}
                 {oreIcon && <div className="absolute bottom-0 right-0 transform translate-x-1/4 translate-y-1/4">{oreIcon}</div>}
             </div>
@@ -207,10 +290,10 @@ const GalaxyMap: React.FC = () => {
         return <Star className={cn(mainIconSize, "text-yellow-400")} />;
       case 'anomaly':
         return <HelpCircle className={cn(mainIconSize, "text-purple-400")} />;
-      case 'player_colony':
-        return <LocateFixed className={cn(mainIconSize, "text-teal-500")} />; // Colony icon
-      case 'ai_colony':
-         return <LocateFixed className={cn(mainIconSize, "text-red-500")} />; // AI Colony icon
+      // case 'player_colony': // Handled above with planets
+      //   return <LocateFixed className={cn(mainIconSize, "text-teal-500")} />; // Colony icon
+      // case 'ai_colony': // Handled above with planets
+      //    return <LocateFixed className={cn(mainIconSize, "text-red-500")} />; // AI Colony icon
       case 'empty':
       default:
         return <div className="w-px h-px bg-muted-foreground/30"></div>;
@@ -246,7 +329,7 @@ const GalaxyMap: React.FC = () => {
                             aria-label={
                                 !sector.isVisible ? `Sector ${sector.x}, ${sector.y}: Hidden` :
                                 !sector.isExplored ? `Sector ${sector.x}, ${sector.y}: Unexplored ${sector.type}` :
-                                `Sector ${sector.x}, ${sector.y}: ${sector.type}` + (sector.oreType ? ` (${sector.oreType})` : '')
+                                `Sector ${sector.x}, ${sector.y}: ${sector.type}` + (Object.keys(sector.oreDeposits).length > 0 ? ` (Ores Present)` : '')
                             }
                             disabled={!sector.isVisible} // Disable button interaction for fogged sectors
                          >
@@ -255,19 +338,30 @@ const GalaxyMap: React.FC = () => {
                     </TooltipTrigger>
                      {/* Tooltip Content - Conditionally render based on visibility/exploration */}
                      {sector.isVisible && (
-                          <TooltipContent side="top" align="center">
-                            <p className="font-semibold mb-1">Sector ({sector.x}, {sector.y})</p>
+                          <TooltipContent side="top" align="center" className="max-w-xs text-xs">
+                            <p className="font-semibold mb-1 text-sm">Sector ({sector.x}, {sector.y})</p>
                             {sector.isExplored ? (
                                 <>
                                     <p className="capitalize">Type: {sector.type.replace('_', ' ')}</p>
-                                    {sector.oreType && (
-                                        <div className="flex items-center mt-1">
-                                            <span className="mr-1">Ore:</span>
-                                            {getOreIcon(sector.oreType)}
-                                            <span className="ml-1">{sector.oreType} ({sector.oreAmount})</span>
+                                    {Object.keys(sector.oreDeposits).length > 0 && (
+                                         <div className="mt-1 pt-1 border-t border-border/50">
+                                            <p className="font-medium mb-0.5">Ore Deposits:</p>
+                                            {Object.entries(sector.oreDeposits)
+                                                .sort(([oreA], [oreB]) => oreA.localeCompare(oreB)) // Sort ores alphabetically
+                                                .map(([ore, deposit]) => (
+                                                <div key={ore} className="flex items-center justify-between text-xs">
+                                                    <span className="flex items-center">
+                                                        {getOreIcon(ore as OreType, deposit.richness)}
+                                                        <span className="ml-1">{ore}:</span>
+                                                    </span>
+                                                    <span>
+                                                        {deposit.amount.toLocaleString()} <span className="text-muted-foreground capitalize">({deposit.richness})</span>
+                                                    </span>
+                                                </div>
+                                            ))}
                                         </div>
                                     )}
-                                    {!sector.oreType && sector.type === 'planet' && (
+                                    {(sector.type === 'planet' || sector.type === 'player_colony' || sector.type === 'ai_colony') && Object.keys(sector.oreDeposits).length === 0 && (
                                         <p className="text-muted-foreground italic text-xs mt-1">No significant ore detected.</p>
                                     )}
                                      {/* Add more explored details later */}
@@ -294,14 +388,25 @@ const GalaxyMap: React.FC = () => {
                 <div className="absolute bottom-2 left-2 bg-popover p-3 rounded-lg shadow-lg border text-sm max-w-xs z-20 pointer-events-none">
                     <h4 className="font-semibold mb-1">Selected: Sector ({selectedSector.x}, {selectedSector.y})</h4>
                     <p className="capitalize">Type: {selectedSector.type.replace('_', ' ')}</p>
-                    {selectedSector.oreType && (
-                        <div className="flex items-center mt-1">
-                            <span className="mr-1">Ore:</span>
-                            {getOreIcon(selectedSector.oreType)}
-                            <span className="ml-1">{selectedSector.oreType} ({selectedSector.oreAmount})</span>
+                     {Object.keys(selectedSector.oreDeposits).length > 0 && (
+                         <div className="mt-1 pt-1 border-t border-border/50">
+                            <p className="font-medium mb-0.5 text-xs">Ore Deposits:</p>
+                            {Object.entries(selectedSector.oreDeposits)
+                                .sort(([oreA], [oreB]) => oreA.localeCompare(oreB))
+                                .map(([ore, deposit]) => (
+                                <div key={ore} className="flex items-center justify-between text-xs">
+                                    <span className="flex items-center">
+                                        {getOreIcon(ore as OreType, deposit.richness)}
+                                        <span className="ml-1">{ore}:</span>
+                                    </span>
+                                    <span>
+                                        {deposit.amount.toLocaleString()} <span className="text-muted-foreground capitalize">({deposit.richness})</span>
+                                    </span>
+                                </div>
+                            ))}
                         </div>
                     )}
-                    {!selectedSector.oreType && selectedSector.type === 'planet' && (
+                    {(selectedSector.type === 'planet' || selectedSector.type === 'player_colony' || selectedSector.type === 'ai_colony') && Object.keys(selectedSector.oreDeposits).length === 0 && (
                         <p className="text-muted-foreground italic text-xs mt-1">No significant ore deposits detected.</p>
                     )}
                     {/* Add more details like buildings, ships present etc. */}
