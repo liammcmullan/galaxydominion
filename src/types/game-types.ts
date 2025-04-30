@@ -23,6 +23,9 @@ export type SectorType = 'empty' | 'planet' | 'star' | 'anomaly' | 'player_colon
 // Define building categories
 export type BuildingCategory = 'Core' | 'Production' | 'Power' | 'Defense' | 'Utility' | 'Shipyard' | 'Storage'; // Added 'Storage'
 
+// Define ship status
+export type ShipStatus = 'idle' | 'moving' | 'mining' | 'trading' | 'docked' | 'constructing'; // Added 'constructing'
+
 // Define the structure for a sector in the galaxy map
 export interface Sector {
   id: string;
@@ -68,15 +71,33 @@ export interface Building {
 }
 
 export interface ShipType {
-  id: string;
+  id: string; // e.g., 'scout', 'cargo'
   name: string;
   description: string;
   cost: Partial<Record<OreType, number>>; // Cost can be multiple ore types
   icon: React.ElementType;
   requires?: string | string[]; // Specific building name(s) or research ID(s) required (e.g., 'Trade Port')
+  baseBuildTime: number; // Base time to build in milliseconds
   // Add stats like speed, cargo capacity, attack, defense later
-  // Add build time later
+  cargoCapacity?: number; // Max cargo space (units)
+  speed?: number; // e.g., sectors per second
 }
+
+// Interface for individual ship instances
+export interface ShipInstance {
+    instanceId: string; // Unique identifier for this specific ship instance
+    typeId: string; // The type of ship (e.g., 'scout', 'cargo') corresponding to ShipType.id
+    name: string; // Can be default or player-assigned
+    status: ShipStatus;
+    location: { x: number; y: number } | 'docked'; // Current sector or 'docked' at colony
+    destination?: { x: number; y: number }; // Target sector if moving
+    cargo: Partial<Record<OreType, number>>; // Current cargo
+    cargoCapacity: number; // Max cargo capacity
+    // Add health, experience, etc. later
+    buildStartTime?: number; // Timestamp when construction started
+    buildDuration?: number; // Total time needed to build
+}
+
 
 export interface ResearchItem {
     id: string;
@@ -93,7 +114,7 @@ export interface ResearchItem {
     timeMultiplier?: number;
 }
 
-// Type for tracking construction progress
+// Type for tracking construction progress (Buildings)
 export interface ConstructionProgress {
     startTime: number;
     duration: number;
@@ -105,5 +126,6 @@ export const getOreRefineryDescription = (oreType: OreType) => `Extracts ${oreTy
 
 // Template function for storage tank descriptions
 export const getOreStorageDescription = (oreType: OreType) => `Increases storage capacity for ${oreType}. Upgrading increases capacity further.`;
+
 
 

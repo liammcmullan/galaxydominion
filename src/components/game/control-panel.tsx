@@ -7,12 +7,13 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Progress } from '@/components/ui/progress'; // Import Progress
-import { Package, Rocket, FlaskConical, Users, Sun, Atom, ShieldCheck, Target, Warehouse, Banknote, Library, HeartPulse, Ship, Factory, Mountain, Diamond, Zap, Cylinder } from 'lucide-react'; // Added Zap, Cylinder icons
+import { Package, Rocket, FlaskConical, Users, Sun, Atom, ShieldCheck, Target, Warehouse, Banknote, Library, HeartPulse, Ship, Factory, Mountain, Diamond, Zap, Cylinder, Move, Anchor, Briefcase } from 'lucide-react'; // Added Zap, Cylinder, Move, Anchor, Briefcase icons
 import { SidebarHeader, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarGroupContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarSeparator, SidebarTrigger } from '@/components/ui/sidebar';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from '@/lib/utils';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"; // Import Accordion
 import { useToast } from "@/hooks/use-toast"; // Import useToast
-import type { Building, ShipType, ResearchItem, Resources, OreType, ConstructionProgress, BuildingCategory, OreRichness, Sector } from '@/types/game-types'; // Import Sector and OreRichness
+import type { Building, ShipType, ResearchItem, Resources, OreType, ConstructionProgress, BuildingCategory, OreRichness, Sector, ShipInstance, ShipStatus } from '@/types/game-types'; // Import game types including ShipInstance
 import { OreType as OreTypeEnum, getOreRefineryDescription, getOreStorageDescription } from '@/types/game-types'; // Import enum and description function
 
 // Define Building Categories
@@ -60,9 +61,9 @@ const availableBuildings: Building[] = [
 
 // --- Ship Definitions ---
 const availableShips: ShipType[] = [
-  { id: 'scout', name: 'Scout', description: 'Fast exploration vessel, reveals nearby sectors.', cost: { [OreTypeEnum.Iron]: 30, [OreTypeEnum.Copper]: 10 }, icon: Rocket },
-  { id: 'cargo', name: 'Cargo Ship', description: 'Transports resources between colonies or stations.', cost: { [OreTypeEnum.Iron]: 80, [OreTypeEnum.Titanium]: 15 }, icon: Warehouse, requires: 'Trade Port' }, // Requires Trade Port
-  { id: 'fighter', name: 'Fighter', description: 'Basic combat ship for defense and offense.', cost: { [OreTypeEnum.Iron]: 100, [OreTypeEnum.Copper]: 25, [OreTypeEnum.Titanium]: 10 }, icon: Rocket },
+  { id: 'scout', name: 'Scout', description: 'Fast exploration vessel, reveals nearby sectors.', cost: { [OreTypeEnum.Iron]: 30, [OreTypeEnum.Copper]: 10 }, icon: Rocket, baseBuildTime: 10000, cargoCapacity: 0, speed: 2 },
+  { id: 'cargo', name: 'Cargo Ship', description: 'Transports resources between colonies or stations.', cost: { [OreTypeEnum.Iron]: 80, [OreTypeEnum.Titanium]: 15 }, icon: Warehouse, requires: 'Trade Port', baseBuildTime: 20000, cargoCapacity: 1000, speed: 1 }, // Requires Trade Port
+  { id: 'fighter', name: 'Fighter', description: 'Basic combat ship for defense and offense.', cost: { [OreTypeEnum.Iron]: 100, [OreTypeEnum.Copper]: 25, [OreTypeEnum.Titanium]: 10 }, icon: Rocket, baseBuildTime: 15000, cargoCapacity: 50, speed: 1.5 },
 ];
 
 // --- Research Definitions ---
@@ -88,6 +89,14 @@ const calculateCost = (baseCost: Partial<Record<OreType, number>>, level: number
 const calculateTime = (baseTime: number, level: number, multiplier: number = 1): number => {
   return Math.floor(baseTime * Math.pow(multiplier, level - 1));
 };
+
+// Calculate ship build time based on facility level
+const calculateShipBuildTime = (baseTime: number, facilityLevel: number): number => {
+    // Example: Reduce build time by 15% per facility level above 1
+    const speedMultiplier = Math.pow(0.85, facilityLevel - 1);
+    return Math.max(1000, Math.floor(baseTime * speedMultiplier)); // Minimum 1 second build time
+};
+
 
 // Calculate energy production/cost for a specific level
 const calculateEnergy = (baseEnergy: number | undefined, level: number, multiplier: number = 1): number => {
@@ -204,6 +213,11 @@ const formatTime = (totalSeconds: number): string => {
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 };
 
+// Helper to format milliseconds to seconds string
+const formatMsToSeconds = (ms: number): string => {
+    return `${(ms / 1000).toFixed(1)}s`;
+};
+
 
 // --- Component State and Logic ---
 
@@ -235,10 +249,14 @@ const selectedSector: Partial<Sector> = {
     }
 };
 
+// Generate a unique ID (simple version)
+const generateUniqueId = () => `ship_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
 const ControlPanel: React.FC = () => {
   const { toast } = useToast();
   const [gameTime, setGameTime] = useState(0); // Game time in seconds
   const [lastUpdateTime, setLastUpdateTime] = useState<number>(() => Date.now()); // Initialize with function
+
 
   // Placeholder state for resources
   const [resources, setResources] = useState<Resources>({
@@ -249,6 +267,12 @@ const ControlPanel: React.FC = () => {
     [OreTypeEnum.Uranium]: 10,
     Energy: { production: 0, consumption: 0, balance: 0 },
   });
+
+  // State to track individual ship instances
+  const [shipInstances, setShipInstances] = useState<Record<string, ShipInstance>>({}); // { instanceId: ShipInstance }
+  // State to track ship construction progress { instanceId: progress (0-100) }
+  const [shipConstructionProgress, setShipConstructionProgress] = useState<Record<string, number>>({});
+
 
   // State to track total storage capacity for each ore type
   const [storageCapacity, setStorageCapacity] = useState<Partial<Record<OreType, number>>>({});
@@ -401,11 +425,11 @@ const ControlPanel: React.FC = () => {
          });
       }
 
-      // --- Construction Progress Update ---
+      // --- Building Construction Progress Update ---
        const nowForProgress = Date.now(); // Use consistent time for progress check
-       const newProgress: Record<string, number> = {};
-       let changed = false;
-       const completedThisTick: string[] = []; // Store completions for this specific tick
+       const newBuildingProgress: Record<string, number> = {};
+       let buildingProgressChanged = false;
+       const completedBuildingsThisTick: string[] = []; // Store completions for this specific tick
 
        for (const buildingId in constructing) {
          const progressData = constructing[buildingId];
@@ -415,28 +439,67 @@ const ControlPanel: React.FC = () => {
 
            if (progress >= 100) {
                progress = 100; // Ensure it caps at 100
-               completedThisTick.push(buildingId); // Add to completions for this tick
+               completedBuildingsThisTick.push(buildingId); // Add to completions for this tick
            }
 
            if (constructionProgress[buildingId] !== progress) {
-             newProgress[buildingId] = progress;
-             changed = true;
+             newBuildingProgress[buildingId] = progress;
+             buildingProgressChanged = true;
            } else {
-             newProgress[buildingId] = constructionProgress[buildingId]; // Keep existing progress if no change
+             newBuildingProgress[buildingId] = constructionProgress[buildingId]; // Keep existing progress if no change
            }
          }
        }
        // Update progress state if needed
-       if (changed) {
-          setConstructionProgress(prev => ({ ...prev, ...newProgress })); // Merge updates
+       if (buildingProgressChanged) {
+          setConstructionProgress(prev => ({ ...prev, ...newBuildingProgress })); // Merge updates
        }
 
-       // --- Handle Completed Constructions (State Updates) ---
-       if (completedThisTick.length > 0) {
+       // --- Ship Construction Progress Update ---
+        const newShipProgress: Record<string, number> = {};
+        let shipProgressChanged = false;
+        const completedShipsThisTick: string[] = []; // Instance IDs
+
+        setShipInstances(prevInstances => {
+            const updatedInstances = { ...prevInstances };
+            let instancesUpdated = false;
+
+            for (const instanceId in updatedInstances) {
+                const ship = updatedInstances[instanceId];
+                if (ship.status === 'constructing' && ship.buildStartTime && ship.buildDuration) {
+                    const elapsed = nowForProgress - ship.buildStartTime;
+                    let progress = Math.min(100, (elapsed / ship.buildDuration) * 100);
+
+                    if (progress >= 100) {
+                        progress = 100;
+                        completedShipsThisTick.push(instanceId);
+                        updatedInstances[instanceId] = { ...ship, status: 'idle', location: 'docked' }; // Mark as completed and idle/docked
+                        instancesUpdated = true;
+                    }
+
+                    if ((shipConstructionProgress[instanceId] ?? 0) !== progress) {
+                        newShipProgress[instanceId] = progress;
+                        shipProgressChanged = true;
+                    } else {
+                        newShipProgress[instanceId] = shipConstructionProgress[instanceId] ?? 0;
+                    }
+                }
+            }
+            return instancesUpdated ? updatedInstances : prevInstances; // Return updated instances only if changes occurred
+        });
+
+        // Update ship construction progress state
+        if (shipProgressChanged) {
+            setShipConstructionProgress(prev => ({ ...prev, ...newShipProgress }));
+        }
+
+
+       // --- Handle Completed Constructions (State Updates for Buildings) ---
+       if (completedBuildingsThisTick.length > 0) {
             // Use functional updates to avoid stale state issues
             setBuiltBuildings(prevBuilt => {
                 const newBuilt = new Set(prevBuilt);
-                completedThisTick.forEach(id => {
+                completedBuildingsThisTick.forEach(id => {
                     const data = constructing[id];
                     if(data && data.targetLevel === 1) { // Only add if it was the first build
                         newBuilt.add(id);
@@ -447,7 +510,7 @@ const ControlPanel: React.FC = () => {
 
             setBuildingLevels(prevLevels => {
                 const newLevels = { ...prevLevels };
-                completedThisTick.forEach(id => {
+                completedBuildingsThisTick.forEach(id => {
                     const data = constructing[id];
                     if (data) {
                         newLevels[id] = data.targetLevel;
@@ -458,7 +521,7 @@ const ControlPanel: React.FC = () => {
 
             setConstructing(prevConstructing => {
                 const newConstructing = { ...prevConstructing };
-                completedThisTick.forEach(id => {
+                completedBuildingsThisTick.forEach(id => {
                     delete newConstructing[id];
                 });
                 return newConstructing;
@@ -466,29 +529,51 @@ const ControlPanel: React.FC = () => {
 
             setConstructionProgress(prevProgress => {
                 const newProg = { ...prevProgress };
-                completedThisTick.forEach(id => {
+                completedBuildingsThisTick.forEach(id => {
                     delete newProg[id];
                 });
                 return newProg;
             });
 
              // Update the list of IDs that completed *this tick* to trigger toast effect
-             setCompletedConstructionIds(completedThisTick);
+             setCompletedConstructionIds(completedBuildingsThisTick);
        } else {
            // Clear completed IDs if none finished this tick
-           // Avoid resetting if there were completions previously that haven't triggered toast yet
-            if(completedConstructionIds.length > 0){
-                // Wait for the toast effect to clear it
-            } else {
-               setCompletedConstructionIds([]);
+            if (completedConstructionIds.length === 0) { // Only clear if no toasts are pending
+                setCompletedConstructionIds([]);
             }
        }
+
+       // --- Handle Completed Ship Constructions ---
+        if (completedShipsThisTick.length > 0) {
+            // Trigger toasts for completed ships
+            completedShipsThisTick.forEach(instanceId => {
+                const ship = shipInstances[instanceId]; // Get the (now updated) ship instance
+                if (ship) {
+                    const shipDef = availableShips.find(s => s.id === ship.typeId);
+                    if(shipDef){
+                        toast({
+                            title: "Ship Construction Complete",
+                            description: `${shipDef.name} (${ship.instanceId.slice(-4)}) is ready.`,
+                        });
+                    }
+                }
+            });
+
+            // Clean up progress state for completed ships
+            setShipConstructionProgress(prev => {
+                const newProg = { ...prev };
+                completedShipsThisTick.forEach(id => delete newProg[id]);
+                return newProg;
+            });
+        }
 
 
     }, 1000); // Run every 1000ms (1 second)
 
     return () => clearInterval(gameLoop); // Cleanup on unmount
-  }, [lastUpdateTime, resources.Energy, builtBuildings, buildingLevels, constructing, constructionProgress, storageCapacity, completedConstructionIds]); // Added completedConstructionIds
+  }, [lastUpdateTime, resources.Energy, builtBuildings, buildingLevels, constructing, constructionProgress, storageCapacity, completedConstructionIds, shipInstances, shipConstructionProgress]); // Added ship-related states
+
 
     // --- Effect to show toasts for completed constructions ---
     useEffect(() => {
@@ -507,11 +592,11 @@ const ControlPanel: React.FC = () => {
              // Reset the completed IDs after showing toasts using setTimeout to avoid render loop issue
              const timeoutId = setTimeout(() => {
                  setCompletedConstructionIds([]);
-             }, 0); // Schedule for next tick
+             }, 50); // Schedule slightly later
 
             return () => clearTimeout(timeoutId); // Cleanup timeout if component unmounts
         }
-    }, [completedConstructionIds, toast, buildingLevels]);
+    }, [completedConstructionIds, buildingLevels]); // Removed toast dependency
 
 
   // Hook to force re-render (use sparingly)
@@ -594,41 +679,86 @@ const ControlPanel: React.FC = () => {
       description: `${isBuilding ? 'Building' : 'Upgrading'} ${building.name} to Level ${targetLevel}...`,
     });
 
-    // --- Timer for completion is handled by the main game loop ---
-    // The useEffect hook will update levels and remove from constructing when progress >= 100
-
   };
 
   // --- Ship Building Logic ---
-  const handleBuildShip = (ship: ShipType) => {
-    // Check common ship requirement first: Ship Facility
-    if (!builtBuildings.has('ship_facility')) {
-      toast({ title: "Ship Facility Required", description: `Cannot build ${ship.name}. Build a Ship Facility first.`, variant: "destructive" });
-      return;
-    }
+  const handleBuildShip = (shipDef: ShipType) => {
+     // Check common ship requirement first: Ship Facility
+     if (!builtBuildings.has('ship_facility')) {
+       toast({ title: "Ship Facility Required", description: `Cannot build ${shipDef.name}. Build a Ship Facility first.`, variant: "destructive" });
+       return;
+     }
 
-    if (!hasEnoughResources(ship.cost, resources)) {
-        toast({ title: "Insufficient Resources", description: `Cannot build ${ship.name}.`, variant: "destructive" });
-        return;
-    }
-    // Check specific ship requirements (e.g., Trade Port for Cargo Ship)
-    if (!areRequirementsMet(ship.requires)) {
-         toast({ title: "Requirements Not Met", description: `Cannot build ${ship.name}. Check requirements.`, variant: "destructive" });
-         return;
-    }
+      // Check specific ship requirements (e.g., Trade Port for Cargo Ship)
+      if (!areRequirementsMet(shipDef.requires)) {
+          toast({ title: "Requirements Not Met", description: `Cannot build ${shipDef.name}. Check requirements.`, variant: "destructive" });
+          return;
+      }
 
-    setResources(prev => {
-        const newResources = { ...prev };
-        Object.entries(ship.cost).forEach(([ore, amount]) => {
-            newResources[ore as OreType] = (newResources[ore as OreType] ?? 0) - amount;
-        });
-        console.log(`Building ${ship.name}... (State updated)`);
-         toast({ title: "Ship Construction Started", description: `Building ${ship.name}...` });
-        // TODO: Add to shipyard queue, implement build time based on Ship Facility level
-        return newResources;
-    });
+      if (!hasEnoughResources(shipDef.cost, resources)) {
+          toast({ title: "Insufficient Resources", description: `Cannot build ${shipDef.name}.`, variant: "destructive" });
+          return;
+      }
 
-  };
+     // Calculate build time based on Ship Facility level
+     const facilityLevel = buildingLevels['ship_facility'] ?? 1;
+     const buildTime = calculateShipBuildTime(shipDef.baseBuildTime, facilityLevel);
+
+
+     // Deduct resources
+     setResources(prev => {
+         const newResources = { ...prev };
+         Object.entries(shipDef.cost).forEach(([ore, amount]) => {
+             newResources[ore as OreType] = (newResources[ore as OreType] ?? 0) - amount;
+         });
+         return newResources;
+     });
+
+     // Create new ship instance in 'constructing' state
+     const instanceId = generateUniqueId();
+     const newShipInstance: ShipInstance = {
+         instanceId,
+         typeId: shipDef.id,
+         name: `${shipDef.name} #${instanceId.slice(-4)}`, // Example name
+         status: 'constructing',
+         location: 'docked', // Starts docked while constructing
+         cargo: {},
+         cargoCapacity: shipDef.cargoCapacity ?? 0,
+         buildStartTime: Date.now(),
+         buildDuration: buildTime,
+     };
+
+     // Add ship instance to state and initialize progress
+     setShipInstances(prev => ({ ...prev, [instanceId]: newShipInstance }));
+     setShipConstructionProgress(prev => ({ ...prev, [instanceId]: 0 }));
+
+     toast({ title: "Ship Construction Started", description: `Building ${shipDef.name}... (${formatMsToSeconds(buildTime)})` });
+
+   };
+
+   // --- Ship Management Logic --- (Placeholders)
+    const handleMoveShip = (instanceId: string) => {
+        console.log(`Move ship: ${instanceId}`);
+        // TODO: Implement move logic (select destination, update status)
+        toast({ title: "Action: Move", description: `Select destination for ship ${instanceId.slice(-4)}.` });
+    };
+
+    const handleDockShip = (instanceId: string) => {
+        console.log(`Dock ship: ${instanceId}`);
+        // TODO: Implement dock logic (return to base, change status)
+        setShipInstances(prev => ({
+            ...prev,
+            [instanceId]: { ...prev[instanceId], status: 'idle', location: 'docked', destination: undefined }
+        }));
+        toast({ title: "Action: Dock", description: `Ship ${instanceId.slice(-4)} returning to dock.` });
+    };
+
+    const handleManageCargo = (instanceId: string) => {
+        console.log(`Manage cargo: ${instanceId}`);
+        // TODO: Implement cargo management UI/logic (load/unload resources)
+        toast({ title: "Action: Cargo", description: `Opening cargo management for ship ${instanceId.slice(-4)}.` });
+    };
+
 
    // --- Research Logic ---
    const handleResearch = (research: ResearchItem) => {
@@ -738,9 +868,10 @@ const ControlPanel: React.FC = () => {
          <TooltipProvider delayDuration={100}>
             <Tabs defaultValue="buildings" className="flex-1 flex flex-col h-full">
             <SidebarGroup className="p-0">
-                <TabsList className="grid w-full grid-cols-4 h-auto rounded-none bg-transparent p-2 gap-1">
+                <TabsList className="grid w-full grid-cols-5 h-auto rounded-none bg-transparent p-2 gap-1"> {/* Changed to 5 cols */}
                     <TabsTrigger value="buildings" className="data-[state=active]:bg-accent data-[state=active]:text-accent-foreground text-xs p-1.5 h-auto">Buildings</TabsTrigger>
                     <TabsTrigger value="shipyard" className="data-[state=active]:bg-accent data-[state=active]:text-accent-foreground text-xs p-1.5 h-auto">Shipyard</TabsTrigger>
+                    <TabsTrigger value="ship_management" className="data-[state=active]:bg-accent data-[state=active]:text-accent-foreground text-xs p-1.5 h-auto">Fleet</TabsTrigger> {/* Added Fleet Tab */}
                     <TabsTrigger value="research" className="data-[state=active]:bg-accent data-[state=active]:text-accent-foreground text-xs p-1.5 h-auto">Research</TabsTrigger>
                     <TabsTrigger value="colony" className="data-[state=active]:bg-accent data-[state=active]:text-accent-foreground text-xs p-1.5 h-auto">Colony</TabsTrigger>
                 </TabsList>
@@ -905,7 +1036,7 @@ const ControlPanel: React.FC = () => {
                                                           <>
                                                               <p className="font-medium mt-1">Next Level ({targetLevel}):</p>
                                                               <p>Cost: {formatCostWithIcons(costForNextLevel)}</p>
-                                                              <p>Build Time: {timeForNextLevel / 1000}s</p>
+                                                              <p>Build Time: {formatMsToSeconds(timeForNextLevel)}</p>
                                                               {energyCostNextLevel > 0 && <p>Energy Cost: {energyCostNextLevel}</p>}
                                                               {energyProdNextLevel > 0 && <p>Energy Prod: {energyProdNextLevel}</p>}
                                                               {/* Show BASE production rate for next level (richness independent) */}
@@ -949,7 +1080,7 @@ const ControlPanel: React.FC = () => {
                 </TabsContent>
 
 
-                {/* Shipyard Tab */}
+                {/* Shipyard Tab (Build Ships) */}
                 <TabsContent value="shipyard" className="mt-0">
                  <SidebarMenu>
                     {!builtBuildings.has('ship_facility') && (
@@ -959,42 +1090,49 @@ const ControlPanel: React.FC = () => {
                             </CardContent>
                         </Card>
                     )}
-                    {availableShips.map((ship) => {
-                         const specificRequirementsMet = areRequirementsMet(ship.requires); // Check specific reqs like Trade Port
+                    {availableShips.map((shipDef) => {
+                         const specificRequirementsMet = areRequirementsMet(shipDef.requires); // Check specific reqs like Trade Port
                          const hasShipFacility = builtBuildings.has('ship_facility');
-                         const enoughResources = hasEnoughResources(ship.cost, resources);
+                         const enoughResources = hasEnoughResources(shipDef.cost, resources);
                          // Disable if Ship Facility isn't built OR specific reqs not met OR not enough resources
                          const isDisabled = !hasShipFacility || !specificRequirementsMet || !enoughResources;
-                         const requirementsText = ['Ship Facility', ...(Array.isArray(ship.requires) ? ship.requires : (ship.requires ? [ship.requires] : []))].join(', ');
+                         const requirementsText = ['Ship Facility', ...(Array.isArray(shipDef.requires) ? shipDef.requires : (shipDef.requires ? [shipDef.requires] : []))].join(', ');
+                          const facilityLevel = buildingLevels['ship_facility'] ?? 1;
+                          const buildTime = calculateShipBuildTime(shipDef.baseBuildTime, facilityLevel);
 
 
                          return (
-                            <SidebarMenuItem key={ship.id}>
+                            <SidebarMenuItem key={shipDef.id}>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
                                         <Card className="w-full bg-card/50 hover:bg-card/70 transition-colors">
                                             <CardContent className="p-2 flex items-center justify-between gap-2">
                                                 <div className="flex items-center gap-2 flex-1 min-w-0">
-                                                    <ship.icon className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                                                    <shipDef.icon className="w-5 h-5 text-muted-foreground flex-shrink-0" />
                                                     <div className="flex-1 min-w-0">
-                                                        <p className="text-sm font-medium truncate">{ship.name}</p>
+                                                        <p className="text-sm font-medium truncate">{shipDef.name}</p>
                                                         <div className="text-xs text-muted-foreground truncate flex items-center flex-wrap">
-                                                            <span className="mr-1">Cost:</span> {formatCostWithIcons(ship.cost)}
+                                                            <span className="mr-1">Cost:</span> {formatCostWithIcons(shipDef.cost)}
+                                                            <span className="mx-1 text-border">|</span>
+                                                            <span>Time: {formatMsToSeconds(buildTime)}</span>
                                                         </div>
                                                     </div>
                                                 </div>
-                                                <Button size="sm" onClick={() => handleBuildShip(ship)} disabled={isDisabled}>
+                                                <Button size="sm" onClick={() => handleBuildShip(shipDef)} disabled={isDisabled}>
                                                     Build
                                                 </Button>
                                             </CardContent>
                                         </Card>
                                     </TooltipTrigger>
                                     <TooltipContent side="right" align="start" className="max-w-xs text-xs">
-                                        <p className="font-semibold text-sm">{ship.name}</p>
-                                        <p className="text-muted-foreground mb-2">{ship.description}</p>
+                                        <p className="font-semibold text-sm">{shipDef.name}</p>
+                                        <p className="text-muted-foreground mb-2">{shipDef.description}</p>
                                         <div className="space-y-1">
-                                            <p>Cost: {formatCostWithIcons(ship.cost)}</p>
-                                            {/* TODO: Add build time for ships */}
+                                            <p>Cost: {formatCostWithIcons(shipDef.cost)}</p>
+                                            <p>Base Build Time: {formatMsToSeconds(shipDef.baseBuildTime)}</p>
+                                            <p>Current Build Time: {formatMsToSeconds(buildTime)} (Facility Lvl {facilityLevel})</p>
+                                            {shipDef.cargoCapacity > 0 && <p>Cargo Capacity: {shipDef.cargoCapacity}</p>}
+                                            {shipDef.speed && <p>Speed: {shipDef.speed} sectors/sec</p>}
                                              <p className={cn("text-amber-400", (!hasShipFacility || !specificRequirementsMet) && "text-destructive/80")}>Requires: {requirementsText}</p>
                                         </div>
                                         {!enoughResources && (
@@ -1003,8 +1141,8 @@ const ControlPanel: React.FC = () => {
                                         {!hasShipFacility && (
                                             <p className="text-xs text-destructive mt-2">Requires Ship Facility.</p>
                                         )}
-                                         {!specificRequirementsMet && hasShipFacility && ship.requires && ( // Show specific unmet reqs only if facility exists
-                                             <p className="text-xs text-destructive mt-2">Requires: {Array.isArray(ship.requires) ? ship.requires.join(', ') : ship.requires}.</p>
+                                         {!specificRequirementsMet && hasShipFacility && shipDef.requires && ( // Show specific unmet reqs only if facility exists
+                                             <p className="text-xs text-destructive mt-2">Requires: {Array.isArray(shipDef.requires) ? shipDef.requires.join(', ') : shipDef.requires}.</p>
                                          )}
                                     </TooltipContent>
                                 </Tooltip>
@@ -1012,6 +1150,107 @@ const ControlPanel: React.FC = () => {
                          )
                     })}
                 </SidebarMenu>
+                </TabsContent>
+
+                {/* Fleet Management Tab */}
+                <TabsContent value="ship_management" className="mt-0 space-y-2">
+                     {!builtBuildings.has('ship_facility') && (
+                          <Card className="w-full bg-card/50 border-dashed border-zinc-500">
+                              <CardContent className="p-3 text-center text-sm text-muted-foreground">
+                                  Build a <span className="font-semibold text-foreground">Ship Facility</span> to manage your fleet.
+                              </CardContent>
+                          </Card>
+                      )}
+                    {builtBuildings.has('ship_facility') && Object.keys(shipInstances).length === 0 && (
+                         <Card className="w-full bg-card/50 border-dashed border-zinc-500">
+                             <CardContent className="p-3 text-center text-sm text-muted-foreground">
+                                 No ships currently built. Visit the Shipyard tab.
+                             </CardContent>
+                         </Card>
+                     )}
+                      {builtBuildings.has('ship_facility') && Object.values(shipInstances).map((ship) => {
+                          const shipDef = availableShips.find(s => s.id === ship.typeId);
+                          if (!shipDef) return null;
+
+                          const progress = shipConstructionProgress[ship.instanceId] ?? 0;
+
+                          return (
+                              <Card key={ship.instanceId} className="w-full bg-card/50 relative overflow-hidden">
+                                  {ship.status === 'constructing' && (
+                                      <Progress
+                                          value={progress}
+                                          className="absolute top-0 left-0 w-full h-1 rounded-none opacity-50 bg-transparent [&>div]:bg-primary"
+                                          aria-label={`Ship construction progress: ${Math.round(progress)}%`}
+                                      />
+                                  )}
+                                  <CardContent className="p-2 flex items-center justify-between gap-2 relative z-10">
+                                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                                          <shipDef.icon className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                                          <div className="flex-1 min-w-0">
+                                              <p className="text-sm font-medium truncate">{ship.name}</p>
+                                              {ship.status === 'constructing' ? (
+                                                  <p className="text-xs text-primary animate-pulse">Constructing ({Math.round(progress)}%)...</p>
+                                              ) : (
+                                                <p className="text-xs text-muted-foreground capitalize">
+                                                  Status: {ship.status}
+                                                  {ship.location !== 'docked' && ` (Sector ${ship.location.x}, ${ship.location.y})`}
+                                                  {ship.location === 'docked' && ` (Docked)`}
+                                                </p>
+                                              )}
+                                          </div>
+                                      </div>
+                                      {/* Action Buttons - Disabled if constructing */}
+                                      <div className="flex gap-1">
+                                          <Tooltip>
+                                              <TooltipTrigger asChild>
+                                                  <Button
+                                                      size="icon"
+                                                      variant="ghost"
+                                                      className="h-6 w-6"
+                                                      onClick={() => handleMoveShip(ship.instanceId)}
+                                                      disabled={ship.status === 'constructing'}
+                                                      aria-label="Move Ship"
+                                                  >
+                                                      <Move className="w-4 h-4" />
+                                                  </Button>
+                                              </TooltipTrigger>
+                                              <TooltipContent side="top">Move</TooltipContent>
+                                          </Tooltip>
+                                          <Tooltip>
+                                              <TooltipTrigger asChild>
+                                                  <Button
+                                                      size="icon"
+                                                      variant="ghost"
+                                                      className="h-6 w-6"
+                                                      onClick={() => handleDockShip(ship.instanceId)}
+                                                      disabled={ship.status === 'constructing' || ship.location === 'docked'}
+                                                      aria-label="Dock Ship"
+                                                  >
+                                                      <Anchor className="w-4 h-4" />
+                                                  </Button>
+                                              </TooltipTrigger>
+                                              <TooltipContent side="top">Dock</TooltipContent>
+                                          </Tooltip>
+                                         <Tooltip>
+                                              <TooltipTrigger asChild>
+                                                  <Button
+                                                      size="icon"
+                                                      variant="ghost"
+                                                      className="h-6 w-6"
+                                                      onClick={() => handleManageCargo(ship.instanceId)}
+                                                      disabled={ship.status === 'constructing'}
+                                                      aria-label="Manage Cargo"
+                                                  >
+                                                      <Briefcase className="w-4 h-4" />
+                                                  </Button>
+                                              </TooltipTrigger>
+                                              <TooltipContent side="top">Manage Cargo</TooltipContent>
+                                          </Tooltip>
+                                      </div>
+                                  </CardContent>
+                              </Card>
+                          );
+                      })}
                 </TabsContent>
 
                 {/* Research Tab */}
@@ -1094,7 +1333,7 @@ const ControlPanel: React.FC = () => {
                                                 <>
                                                    <p className="font-medium mt-1">Next Level ({targetLevel}):</p>
                                                    <p>Cost: {formatCostWithIcons(costForNextLevel)}</p>
-                                                   <p>Research Time: {timeForNextLevel / 1000}s</p>
+                                                   <p>Research Time: {formatMsToSeconds(timeForNextLevel)}</p>
                                                    {/* Add next level effects description here */}
                                                 </>
                                             )}
@@ -1211,5 +1450,3 @@ const ControlPanel: React.FC = () => {
 };
 
 export default ControlPanel;
-
-    
