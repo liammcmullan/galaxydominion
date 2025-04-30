@@ -262,6 +262,9 @@ const ControlPanel: React.FC = () => {
   const [buildingLevels, setBuildingLevels] = useState<Record<string, number>>({ 'colony_hub': 1 }); // Start with Hub Lvl 1
    // State for completed research { researchId: level }
   const [completedResearch, setCompletedResearch] = useState<Record<string, number>>({}); // Track completed research levels
+  // State to track IDs of completed constructions for triggering toasts
+  const [completedConstructionIds, setCompletedConstructionIds] = useState<string[]>([]);
+
 
    // Group buildings by category
    const groupedBuildings = useMemo(() => {
@@ -402,7 +405,7 @@ const ControlPanel: React.FC = () => {
        const nowForProgress = Date.now(); // Use consistent time for progress check
        const newProgress: Record<string, number> = {};
        let changed = false;
-       const completedConstructions: string[] = [];
+       const completedThisTick: string[] = []; // Store completions for this specific tick
 
        for (const buildingId in constructing) {
          const progressData = constructing[buildingId];
@@ -412,7 +415,7 @@ const ControlPanel: React.FC = () => {
 
            if (progress >= 100) {
                progress = 100; // Ensure it caps at 100
-               completedConstructions.push(buildingId);
+               completedThisTick.push(buildingId); // Add to completions for this tick
            }
 
            if (constructionProgress[buildingId] !== progress) {
@@ -428,12 +431,12 @@ const ControlPanel: React.FC = () => {
           setConstructionProgress(prev => ({ ...prev, ...newProgress })); // Merge updates
        }
 
-       // --- Handle Completed Constructions ---
-       if (completedConstructions.length > 0) {
+       // --- Handle Completed Constructions (State Updates) ---
+       if (completedThisTick.length > 0) {
             // Use functional updates to avoid stale state issues
             setBuiltBuildings(prevBuilt => {
                 const newBuilt = new Set(prevBuilt);
-                completedConstructions.forEach(id => {
+                completedThisTick.forEach(id => {
                     const data = constructing[id];
                     if(data && data.targetLevel === 1) { // Only add if it was the first build
                         newBuilt.add(id);
@@ -444,16 +447,10 @@ const ControlPanel: React.FC = () => {
 
             setBuildingLevels(prevLevels => {
                 const newLevels = { ...prevLevels };
-                completedConstructions.forEach(id => {
+                completedThisTick.forEach(id => {
                     const data = constructing[id];
                     if (data) {
                         newLevels[id] = data.targetLevel;
-                        // Toast for completion
-                        toast({
-                            title: `${data.targetLevel === 1 ? 'Construction' : 'Upgrade'} Complete`,
-                            description: `${availableBuildings.find(b => b.id === id)?.name ?? id} reached Level ${data.targetLevel}.`,
-                            variant: "default",
-                        });
                     }
                 });
                 return newLevels;
@@ -461,7 +458,7 @@ const ControlPanel: React.FC = () => {
 
             setConstructing(prevConstructing => {
                 const newConstructing = { ...prevConstructing };
-                completedConstructions.forEach(id => {
+                completedThisTick.forEach(id => {
                     delete newConstructing[id];
                 });
                 return newConstructing;
@@ -469,18 +466,47 @@ const ControlPanel: React.FC = () => {
 
             setConstructionProgress(prevProgress => {
                 const newProg = { ...prevProgress };
-                completedConstructions.forEach(id => {
+                completedThisTick.forEach(id => {
                     delete newProg[id];
                 });
                 return newProg;
             });
+
+             // Update the list of IDs that completed *this tick* to trigger toast effect
+             setCompletedConstructionIds(completedThisTick);
+       } else {
+           // Clear completed IDs if none finished this tick
+           setCompletedConstructionIds([]);
        }
 
 
     }, 1000); // Run every 1000ms (1 second)
 
     return () => clearInterval(gameLoop); // Cleanup on unmount
-  }, [lastUpdateTime, resources.Energy, builtBuildings, buildingLevels, constructing, constructionProgress, storageCapacity, toast]); // Add toast to dependencies
+  }, [lastUpdateTime, resources.Energy, builtBuildings, buildingLevels, constructing, constructionProgress, storageCapacity]); // Removed toast dependency
+
+    // --- Effect to show toasts for completed constructions ---
+    useEffect(() => {
+        if (completedConstructionIds.length > 0) {
+            completedConstructionIds.forEach(id => {
+                 // Need to get the target level from the *constructing* state before it was cleared
+                 // Since the state update is async, we might need to retrieve the info from a source
+                 // that was available just before clearing. A simple approach is to use the building level state,
+                 // which should have been updated in the same batch.
+                 const completedLevel = buildingLevels[id];
+                 const buildingName = availableBuildings.find(b => b.id === id)?.name ?? id;
+                 if (completedLevel !== undefined) {
+                     toast({
+                         title: `${completedLevel === 1 ? 'Construction' : 'Upgrade'} Complete`,
+                         description: `${buildingName} reached Level ${completedLevel}.`,
+                         variant: "default",
+                     });
+                 }
+            });
+             // Reset the completed IDs after showing toasts to prevent re-triggering
+            setCompletedConstructionIds([]);
+        }
+    }, [completedConstructionIds, toast, buildingLevels]); // Depends on the list of completed IDs and toast function
 
 
   // Hook to force re-render (use sparingly)
