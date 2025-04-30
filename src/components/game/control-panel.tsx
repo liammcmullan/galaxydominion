@@ -233,6 +233,33 @@ const formatMsToSeconds = (ms: number): string => {
     return `${(ms / 1000).toFixed(1)}s`;
 };
 
+// Calculate distance between two sectors (simple Manhattan distance)
+const calculateDistance = (
+    start: { x: number; y: number } | 'docked',
+    end: { x: number; y: number }
+): number => {
+    if (start === 'docked') {
+        // Assume docked location is the selectedSector (colony base)
+        const baseX = selectedSector?.x ?? 1;
+        const baseY = selectedSector?.y ?? 1;
+        return Math.abs(end.x - baseX) + Math.abs(end.y - baseY);
+    }
+    return Math.abs(end.x - start.x) + Math.abs(end.y - start.y);
+};
+
+// Calculate travel time in milliseconds
+const calculateTravelTime = (
+    start: { x: number; y: number } | 'docked',
+    end: { x: number; y: number },
+    speed: number // sectors per second
+): number => {
+    const distance = calculateDistance(start, end);
+    if (speed <= 0) return Infinity; // Prevent division by zero
+    const timeInSeconds = distance / speed;
+    return Math.max(1000, Math.floor(timeInSeconds * 1000)); // Minimum 1 second travel time
+};
+
+
 
 // --- Component State and Logic ---
 
@@ -252,9 +279,14 @@ const getSectorOreRichness = (oreType: OreType): OreRichness => {
 };
 
 // Placeholder: Assume the ControlPanel controls the starting colony at (1,1)
-const selectedSector: Partial<Sector> = {
+// This should ideally be dynamic based on player's selected colony
+const selectedColonySector: Sector = {
+    id: '1-1', // Should match the generation logic
+    type: 'player_colony',
     x: 1,
     y: 1,
+    isVisible: true,
+    isExplored: true,
     oreDeposits: {
         [OreTypeEnum.Iron]: { amount: 8000, richness: 'rich'},
         [OreTypeEnum.Copper]: { amount: 2000, richness: 'poor'},
@@ -404,7 +436,8 @@ const ControlPanel: React.FC = () => {
          // Only generate if it's a Production building, has a target ore, has a base rate, and is not constructing
          if (buildingDef?.category === 'Production' && buildingDef.oreTarget && buildingDef.baseProductionRate && !constructing[id]) {
             const oreType = buildingDef.oreTarget;
-            const richness = selectedSector.oreDeposits?.[oreType]?.richness ?? 'none'; // Get richness from selected sector (replace with actual colony sector data)
+            // Use the *selected colony's* ore richness
+            const richness = selectedColonySector.oreDeposits?.[oreType]?.richness ?? 'none';
 
             // Calculate effective production rate based on level, richness, and energy efficiency
             const effectiveRate = calculateEffectiveProductionRate(
@@ -481,25 +514,35 @@ const ControlPanel: React.FC = () => {
            });
        }
 
-       // --- Ship Construction Progress Update ---
+       // --- Ship Construction & Movement Progress Update ---
         const newShipProgress: Record<string, number> = {};
         let shipProgressChanged = false;
-        const completedShipsThisTick: string[] = []; // Instance IDs
+        const completedShipsThisTick: string[] = []; // Instance IDs for construction completion
+        const arrivedShipsThisTick: string[] = []; // Instance IDs for movement completion
 
         setShipInstances(prevInstances => {
             const updatedInstances = { ...prevInstances };
             let instancesUpdated = false;
+            const nowForShips = Date.now(); // Consistent timestamp
 
             for (const instanceId in updatedInstances) {
                 const ship = updatedInstances[instanceId];
+
+                // Handle Construction Progress
                 if (ship.status === 'constructing' && ship.buildStartTime && ship.buildDuration) {
-                    const elapsed = nowForProgress - ship.buildStartTime;
+                    const elapsed = nowForShips - ship.buildStartTime;
                     let progress = Math.min(100, (elapsed / ship.buildDuration) * 100);
 
                     if (progress >= 100) {
                         progress = 100;
                         completedShipsThisTick.push(instanceId);
-                        updatedInstances[instanceId] = { ...ship, status: 'idle', location: 'docked' }; // Mark as completed and idle/docked
+                        updatedInstances[instanceId] = {
+                             ...ship,
+                             status: 'idle',
+                             location: 'docked',
+                             buildStartTime: undefined, // Clear build timer info
+                             buildDuration: undefined,
+                         };
                         instancesUpdated = true;
                     }
 
@@ -510,6 +553,27 @@ const ControlPanel: React.FC = () => {
                         newShipProgress[instanceId] = shipConstructionProgress[instanceId] ?? 0;
                     }
                 }
+                // Handle Movement Progress
+                else if (ship.status === 'moving' && ship.destination && ship.moveStartTime && ship.moveDuration) {
+                     const elapsedMove = nowForShips - ship.moveStartTime;
+                     if (elapsedMove >= ship.moveDuration) {
+                          // Arrival
+                          arrivedShipsThisTick.push(instanceId);
+                          updatedInstances[instanceId] = {
+                               ...ship,
+                               status: 'idle', // Or 'exploring' if it's a scout arriving at unexplored
+                               location: ship.destination, // Update location to destination
+                               destination: undefined, // Clear destination
+                               moveStartTime: undefined,
+                               moveDuration: undefined,
+                           };
+                          instancesUpdated = true;
+                          // TODO: If scout, trigger exploration of the destination sector
+                          // exploreSector(ship.destination.x, ship.destination.y);
+                          // Need access to the exploreSector function here or manage exploration state elsewhere
+                     }
+                      // Note: We don't track movement progress percentage visually here, but could add it.
+                }
             }
             return instancesUpdated ? updatedInstances : prevInstances; // Return updated instances only if changes occurred
         });
@@ -518,9 +582,10 @@ const ControlPanel: React.FC = () => {
         if (shipProgressChanged) {
              setShipConstructionProgress(prev => {
                  const mergedProgress = { ...prev, ...newShipProgress };
+                 // Clean up completed construction progress
                  completedShipsThisTick.forEach(id => {
                      if (mergedProgress[id] === 100) {
-                         delete mergedProgress[id]; // Clean up completed ships
+                         delete mergedProgress[id];
                      }
                  });
                  return mergedProgress;
@@ -575,26 +640,47 @@ const ControlPanel: React.FC = () => {
 
        // --- Handle Completed Ship Constructions ---
         if (completedShipsThisTick.length > 0) {
-            // Trigger toasts for completed ships
-            completedShipsThisTick.forEach(instanceId => {
-                // Need to access the potentially updated shipInstances state here.
-                // It might be slightly delayed due to async nature.
-                // A safer approach might involve passing ship info directly or using a ref if needed immediately.
-                // For simplicity, we rely on the next render having the updated shipInstances.
-                const ship = shipInstances[instanceId]; // This might be stale if toast shows before state update
-                if (ship) { // Check if ship data is available
-                    const shipDef = availableShips.find(s => s.id === ship.typeId);
-                    if(shipDef){
-                        toast({
-                            title: "Ship Construction Complete",
-                            description: `${shipDef.name} (${ship.instanceId.slice(-4)}) is ready.`,
-                        });
+            // Fetch potentially updated ship instances for toast messages
+            // Using a slight delay to ensure state update propagates, or access directly if possible
+            setTimeout(() => {
+                const currentShipInstances = shipInstances; // Capture current state
+                completedShipsThisTick.forEach(instanceId => {
+                    const ship = currentShipInstances[instanceId];
+                    if (ship) {
+                        const shipDef = availableShips.find(s => s.id === ship.typeId);
+                        if(shipDef){
+                            toast({
+                                title: "Ship Construction Complete",
+                                description: `${shipDef.name} (${instanceId.slice(-4)}) is ready.`,
+                            });
+                        }
                     }
-                }
-            });
+                });
+            }, 50); // Small delay
+
 
             // Progress is cleaned up in its own state update above
             // setShipConstructionProgress(prev => { ... })
+        }
+
+        // --- Handle Arrived Ships ---
+        if (arrivedShipsThisTick.length > 0) {
+             // Fetch potentially updated ship instances for toast messages
+             setTimeout(() => {
+                const currentShipInstances = shipInstances; // Capture current state
+                arrivedShipsThisTick.forEach(instanceId => {
+                    const ship = currentShipInstances[instanceId];
+                    if (ship && typeof ship.location !== 'string') { // Check if location is not 'docked'
+                         const shipDef = availableShips.find(s => s.id === ship.typeId);
+                         if(shipDef){
+                             toast({
+                                 title: "Ship Arrived",
+                                 description: `${shipDef.name} (${instanceId.slice(-4)}) reached Sector (${ship.location.x}, ${ship.location.y}).`,
+                             });
+                         }
+                    }
+                });
+            }, 50); // Small delay
         }
 
 
@@ -607,9 +693,10 @@ const ControlPanel: React.FC = () => {
     // --- Effect to show toasts for completed constructions ---
     useEffect(() => {
         if (completedConstructionIds.length > 0) {
+            // Use a copy of buildingLevels from the time the effect runs
+            const currentBuildingLevels = { ...buildingLevels };
             completedConstructionIds.forEach(id => {
-                 // Access potentially updated buildingLevels state here
-                 const completedLevel = buildingLevels[id];
+                 const completedLevel = currentBuildingLevels[id]; // Use the captured levels
                  const buildingName = availableBuildings.find(b => b.id === id)?.name ?? id;
                  if (completedLevel !== undefined) {
                      toast({
@@ -619,14 +706,11 @@ const ControlPanel: React.FC = () => {
                      });
                  }
             });
-             // Reset the completed IDs after showing toasts. Using setTimeout helps queue this after the current render cycle.
-             const timeoutId = setTimeout(() => {
-                 setCompletedConstructionIds([]);
-             }, 10); // Small delay
-
-            return () => clearTimeout(timeoutId); // Cleanup timeout
+             // Reset the completed IDs after potentially showing toasts.
+             // SetTimeout might still be useful if there are rapid updates, but ensure it doesn't conflict.
+             setCompletedConstructionIds([]); // Reset immediately after processing
         }
-    }, [completedConstructionIds, buildingLevels, toast]); // Add toast dependency
+    }, [completedConstructionIds, buildingLevels, toast]); // Dependency on buildingLevels ensures it runs after levels update
 
 
   // Hook to force re-render (use sparingly)
@@ -760,6 +844,7 @@ const ControlPanel: React.FC = () => {
          name: `${shipDef.name} #${instanceId.slice(-4)}`, // Example name
          status: 'constructing',
          location: 'docked', // Starts docked while constructing
+         speed: shipDef.speed, // Assign base speed
          cargo: {},
          cargoCapacity: shipDef.cargoCapacity ?? 0,
          buildStartTime: Date.now(),
@@ -774,24 +859,74 @@ const ControlPanel: React.FC = () => {
 
    };
 
-   // --- Ship Management Logic --- (Placeholders)
+   // --- Ship Management Logic ---
     const handleMoveShip = (instanceId: string) => {
-        console.log(`Move ship: ${instanceId}`);
-        // TODO: Implement move logic (select destination, update status)
-        toast({ title: "Action: Move", description: `Select destination for ship ${instanceId.slice(-4)}.` });
+        const ship = shipInstances[instanceId];
+        if (!ship || ship.status === 'moving' || ship.status === 'constructing') {
+            toast({ title: "Cannot Move", description: "Ship is busy or still constructing.", variant: "destructive"});
+            return;
+        }
+
+        // Basic implementation: Move to a fixed sector (e.g., 5,5) for testing
+        // TODO: Replace with UI to select destination sector
+        const destination = { x: 5, y: 5 };
+
+        const travelTimeMs = calculateTravelTime(ship.location, destination, ship.speed);
+
+        if (travelTimeMs === Infinity) {
+            toast({ title: "Error", description: "Cannot calculate travel time.", variant: "destructive"});
+            return;
+        }
+
+        setShipInstances(prev => ({
+            ...prev,
+            [instanceId]: {
+                ...prev[instanceId],
+                status: 'moving',
+                destination: destination,
+                moveStartTime: Date.now(),
+                moveDuration: travelTimeMs,
+            }
+        }));
+
+        toast({ title: "Ship Moving", description: `${ship.name} moving to Sector (${destination.x}, ${destination.y}). ETA: ${formatMsToSeconds(travelTimeMs)}` });
     };
 
     const handleDockShip = (instanceId: string) => {
-        console.log(`Dock ship: ${instanceId}`);
-        // TODO: Implement dock logic (return to base, change status)
+        const ship = shipInstances[instanceId];
+        if (!ship || ship.location === 'docked' || ship.status === 'constructing') {
+            toast({ title: "Cannot Dock", description: "Ship is already docked or busy.", variant: "destructive"});
+            return;
+        }
+
+        // Destination is the colony base (using selectedColonySector for now)
+        const destination = { x: selectedColonySector.x, y: selectedColonySector.y };
+        const travelTimeMs = calculateTravelTime(ship.location, destination, ship.speed);
+
+        if (travelTimeMs === Infinity) {
+            toast({ title: "Error", description: "Cannot calculate travel time.", variant: "destructive"});
+            return;
+        }
+
         setShipInstances(prev => ({
             ...prev,
-            [instanceId]: { ...prev[instanceId], status: 'idle', location: 'docked', destination: undefined }
+            [instanceId]: {
+                 ...prev[instanceId],
+                 status: 'moving', // Status becomes moving back to dock
+                 destination: destination, // Destination is the base
+                 moveStartTime: Date.now(),
+                 moveDuration: travelTimeMs,
+            }
         }));
-        toast({ title: "Action: Dock", description: `Ship ${instanceId.slice(-4)} returning to dock.` });
+        toast({ title: "Returning to Dock", description: `${ship.name} returning to base. ETA: ${formatMsToSeconds(travelTimeMs)}` });
     };
 
     const handleManageCargo = (instanceId: string) => {
+        const ship = shipInstances[instanceId];
+        if (!ship || ship.status === 'constructing') {
+            toast({ title: "Cannot Manage Cargo", description: "Ship is busy.", variant: "destructive"});
+            return;
+        }
         console.log(`Manage cargo: ${instanceId}`);
         // TODO: Implement cargo management UI/logic (load/unload resources)
         toast({ title: "Action: Cargo", description: `Opening cargo management for ship ${instanceId.slice(-4)}.` });
@@ -967,7 +1102,7 @@ const ControlPanel: React.FC = () => {
                                    // Calculate current effective production rate for display
                                    let currentEffectiveProdRate = 0;
                                    if (buildingDef.category === 'Production' && buildingDef.oreTarget && currentBaseProdRate > 0 && !isConstructing) {
-                                        const richness = selectedSector.oreDeposits?.[buildingDef.oreTarget]?.richness ?? 'none';
+                                        const richness = selectedColonySector.oreDeposits?.[buildingDef.oreTarget]?.richness ?? 'none'; // Use selected colony sector
                                         const energyBalance = resources.Energy?.balance ?? 0;
                                         const energyConsumption = resources.Energy?.consumption ?? 1;
                                         const efficiency = energyBalance >= 0 ? 1 : Math.max(0, 1 + (energyBalance / energyConsumption));
@@ -1222,6 +1357,19 @@ const ControlPanel: React.FC = () => {
                           if (!shipDef) return null;
 
                           const progress = shipConstructionProgress[ship.instanceId] ?? 0;
+                          const isBusy = ship.status === 'constructing' || ship.status === 'moving';
+                          const isDocked = ship.location === 'docked';
+                           let statusText = ship.status;
+                           let locationText = '';
+                            if (ship.location === 'docked') {
+                                locationText = "(Docked)";
+                            } else if (typeof ship.location === 'object') {
+                                locationText = `(Sector ${ship.location.x}, ${ship.location.y})`;
+                            }
+                           if (ship.status === 'moving' && ship.destination && ship.moveStartTime && ship.moveDuration) {
+                                const remainingTimeMs = Math.max(0, ship.moveDuration - (Date.now() - ship.moveStartTime));
+                                statusText = `Moving to (${ship.destination.x}, ${ship.destination.y}) [${formatMsToSeconds(remainingTimeMs)}]`;
+                           }
 
                           return (
                               <Card key={ship.instanceId} className="w-full bg-card/50 relative overflow-hidden">
@@ -1243,10 +1391,8 @@ const ControlPanel: React.FC = () => {
                                                   <p className="text-xs text-muted-foreground">Time remaining: {formatMsToSeconds(Math.max(0, (ship.buildDuration ?? 0) - (Date.now() - (ship.buildStartTime ?? 0))))}</p>
                                                 </>
                                               ) : (
-                                                <p className="text-xs text-muted-foreground capitalize">
-                                                  Status: {ship.status}
-                                                  {ship.location !== 'docked' && ` (Sector ${ship.location.x}, ${ship.location.y})`}
-                                                  {ship.location === 'docked' && ` (Docked)`}
+                                                <p className="text-xs text-muted-foreground capitalize truncate">
+                                                   {statusText} {locationText}
                                                 </p>
                                               )}
                                           </div>
@@ -1260,7 +1406,7 @@ const ControlPanel: React.FC = () => {
                                                       variant="ghost"
                                                       className="h-6 w-6"
                                                       onClick={() => handleMoveShip(ship.instanceId)}
-                                                      disabled={ship.status === 'constructing'}
+                                                      disabled={isBusy}
                                                       aria-label="Move Ship"
                                                   >
                                                       <Move className="w-4 h-4" />
@@ -1275,7 +1421,7 @@ const ControlPanel: React.FC = () => {
                                                       variant="ghost"
                                                       className="h-6 w-6"
                                                       onClick={() => handleDockShip(ship.instanceId)}
-                                                      disabled={ship.status === 'constructing' || ship.location === 'docked'}
+                                                      disabled={isBusy || isDocked} // Disable if busy or already docked
                                                       aria-label="Dock Ship"
                                                   >
                                                       <Anchor className="w-4 h-4" />
@@ -1290,7 +1436,7 @@ const ControlPanel: React.FC = () => {
                                                       variant="ghost"
                                                       className="h-6 w-6"
                                                       onClick={() => handleManageCargo(ship.instanceId)}
-                                                      disabled={ship.status === 'constructing'}
+                                                      disabled={isBusy} // Disable if busy
                                                       aria-label="Manage Cargo"
                                                   >
                                                       <Briefcase className="w-4 h-4" />
@@ -1412,7 +1558,7 @@ const ControlPanel: React.FC = () => {
                 <TabsContent value="colony" className="mt-0">
                 <Card className="bg-card/50">
                     <CardHeader>
-                    <CardTitle className="text-base">Colony Status (Sector {selectedSector?.x ?? '?'}, {selectedSector?.y ?? '?'})</CardTitle> {/* Show sector coords */}
+                    <CardTitle className="text-base">Colony Status (Sector {selectedColonySector?.x ?? '?'}, {selectedColonySector?.y ?? '?'})</CardTitle> {/* Show sector coords */}
                     </CardHeader>
                     <CardContent className="text-sm space-y-2">
                     <p>Population: 100 / 150 (Placeholder)</p>
@@ -1427,7 +1573,7 @@ const ControlPanel: React.FC = () => {
                                   const level = buildingLevels[id] ?? 1;
                                   if (buildingDef?.category === 'Production' && buildingDef.oreTarget === ore && buildingDef.baseProductionRate && !constructing[id]) {
                                         hasRefinery = true;
-                                        const richness = selectedSector.oreDeposits?.[ore]?.richness ?? 'none';
+                                        const richness = selectedColonySector.oreDeposits?.[ore]?.richness ?? 'none';
                                         const energyBalance = resources.Energy?.balance ?? 0;
                                         const energyConsumption = resources.Energy?.consumption ?? 1;
                                         const efficiency = energyBalance >= 0 ? 1 : Math.max(0, 1 + (energyBalance / energyConsumption));
@@ -1441,7 +1587,7 @@ const ControlPanel: React.FC = () => {
                               const currentAmount = resources[ore] ?? 0;
                               const capacity = storageCapacity[ore] ?? 0;
                               const isStorageFull = capacity > 0 && currentAmount >= capacity;
-                              const oreRichness = selectedSector.oreDeposits?.[ore]?.richness ?? 'none';
+                              const oreRichness = selectedColonySector.oreDeposits?.[ore]?.richness ?? 'none';
 
 
                               if (hasRefinery || totalEffectiveRate > 0) { // Show if refinery exists OR rate > 0 (handles cases where refinery might be removed but state still shows rate briefly)
@@ -1505,5 +1651,3 @@ const ControlPanel: React.FC = () => {
 };
 
 export default ControlPanel;
-
-    

@@ -221,6 +221,11 @@ const GalaxyMap: React.FC = () => {
      // Generate grid on component mount (client-side)
      const generatedGrid = generateGridData(gridSize);
      setGridData(generatedGrid);
+     // Find and set the player's starting colony as the initially selected sector
+     const playerColony = generatedGrid.flat().find(s => s.type === 'player_colony');
+     if (playerColony) {
+         setSelectedSector(playerColony);
+     }
      setIsLoading(false);
     // Simulate exploring the starting area after generation
     if (generatedGrid && generatedGrid[1] && generatedGrid[1][1]?.type === 'player_colony') {

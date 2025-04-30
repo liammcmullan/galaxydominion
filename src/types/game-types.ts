@@ -24,7 +24,7 @@ export type SectorType = 'empty' | 'planet' | 'star' | 'anomaly' | 'player_colon
 export type BuildingCategory = 'Core' | 'Production' | 'Power' | 'Defense' | 'Utility' | 'Shipyard' | 'Storage'; // Added 'Storage'
 
 // Define ship status
-export type ShipStatus = 'idle' | 'moving' | 'mining' | 'trading' | 'docked' | 'constructing'; // Added 'constructing'
+export type ShipStatus = 'idle' | 'moving' | 'mining' | 'trading' | 'docked' | 'constructing' | 'exploring'; // Added 'constructing' and 'exploring'
 
 // Define the structure for a sector in the galaxy map
 export interface Sector {
@@ -82,7 +82,7 @@ export interface ShipType {
   baseBuildTime: number; // Base time to build in milliseconds
   // Add stats like speed, cargo capacity, attack, defense later
   cargoCapacity?: number; // Max cargo space (units)
-  speed?: number; // e.g., sectors per second
+  speed: number; // e.g., sectors per second (now mandatory)
 }
 
 // Interface for individual ship instances
@@ -91,8 +91,11 @@ export interface ShipInstance {
     typeId: string; // The type of ship (e.g., 'scout', 'cargo') corresponding to ShipType.id
     name: string; // Can be default or player-assigned
     status: ShipStatus;
+    speed: number; // Ship's current speed (inherited from ShipType)
     location: { x: number; y: number } | 'docked'; // Current sector or 'docked' at colony
     destination?: { x: number; y: number }; // Target sector if moving
+    moveStartTime?: number; // Timestamp when movement started
+    moveDuration?: number; // Total time needed for current move
     cargo: Partial<Record<OreType, number>>; // Current cargo
     cargoCapacity: number; // Max cargo capacity
     // Add health, experience, etc. later
@@ -128,6 +131,3 @@ export const getOreRefineryDescription = (oreType: OreType) => `Extracts ${oreTy
 
 // Template function for storage tank descriptions
 export const getOreStorageDescription = (oreType: OreType) => `Increases storage capacity for ${oreType}. Upgrading increases capacity further.`;
-
-
-    
