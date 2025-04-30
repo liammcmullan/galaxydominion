@@ -236,13 +236,11 @@ const formatMsToSeconds = (ms: number): string => {
 // Calculate distance between two sectors (simple Manhattan distance)
 const calculateDistance = (
     start: { x: number; y: number } | 'docked',
-    end: { x: number; y: number }
+    end: { x: number; y: number },
+    baseCoords: { x: number; y: number } // Pass base coordinates
 ): number => {
     if (start === 'docked') {
-        // Assume docked location is the selectedSector (colony base)
-        const baseX = selectedSector?.x ?? 1;
-        const baseY = selectedSector?.y ?? 1;
-        return Math.abs(end.x - baseX) + Math.abs(end.y - baseY);
+        return Math.abs(end.x - baseCoords.x) + Math.abs(end.y - baseCoords.y);
     }
     return Math.abs(end.x - start.x) + Math.abs(end.y - start.y);
 };
@@ -251,9 +249,10 @@ const calculateDistance = (
 const calculateTravelTime = (
     start: { x: number; y: number } | 'docked',
     end: { x: number; y: number },
-    speed: number // sectors per second
+    speed: number, // sectors per second
+    baseCoords: { x: number; y: number } // Pass base coordinates
 ): number => {
-    const distance = calculateDistance(start, end);
+    const distance = calculateDistance(start, end, baseCoords);
     if (speed <= 0) return Infinity; // Prevent division by zero
     const timeInSeconds = distance / speed;
     return Math.max(1000, Math.floor(timeInSeconds * 1000)); // Minimum 1 second travel time
@@ -295,6 +294,9 @@ const selectedColonySector: Sector = {
         [OreTypeEnum.Uranium]: { amount: 0, richness: 'none' },
     }
 };
+
+// Coordinates of the base colony
+const baseCoords = { x: selectedColonySector.x, y: selectedColonySector.y };
 
 // Generate a unique ID (simple version)
 const generateUniqueId = () => `ship_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
@@ -643,19 +645,23 @@ const ControlPanel: React.FC = () => {
             // Fetch potentially updated ship instances for toast messages
             // Using a slight delay to ensure state update propagates, or access directly if possible
             setTimeout(() => {
-                const currentShipInstances = shipInstances; // Capture current state
-                completedShipsThisTick.forEach(instanceId => {
-                    const ship = currentShipInstances[instanceId];
-                    if (ship) {
-                        const shipDef = availableShips.find(s => s.id === ship.typeId);
-                        if(shipDef){
-                            toast({
-                                title: "Ship Construction Complete",
-                                description: `${shipDef.name} (${instanceId.slice(-4)}) is ready.`,
-                            });
+                 // Use functional update to get the latest state
+                 setShipInstances(currentShipInstances => {
+                    completedShipsThisTick.forEach(instanceId => {
+                        const ship = currentShipInstances[instanceId];
+                        if (ship) {
+                            const shipDef = availableShips.find(s => s.id === ship.typeId);
+                            if(shipDef){
+                                toast({
+                                    title: "Ship Construction Complete",
+                                    description: `${shipDef.name} (${instanceId.slice(-4)}) is ready.`,
+                                });
+                            }
                         }
-                    }
-                });
+                    });
+                     return currentShipInstances; // Return the same state, just used it to get data
+                 });
+
             }, 50); // Small delay
 
 
@@ -667,20 +673,23 @@ const ControlPanel: React.FC = () => {
         if (arrivedShipsThisTick.length > 0) {
              // Fetch potentially updated ship instances for toast messages
              setTimeout(() => {
-                const currentShipInstances = shipInstances; // Capture current state
-                arrivedShipsThisTick.forEach(instanceId => {
-                    const ship = currentShipInstances[instanceId];
-                    if (ship && typeof ship.location !== 'string') { // Check if location is not 'docked'
-                         const shipDef = availableShips.find(s => s.id === ship.typeId);
-                         if(shipDef){
-                             toast({
-                                 title: "Ship Arrived",
-                                 description: `${shipDef.name} (${instanceId.slice(-4)}) reached Sector (${ship.location.x}, ${ship.location.y}).`,
-                             });
-                         }
-                    }
-                });
-            }, 50); // Small delay
+                  // Use functional update to get the latest state
+                  setShipInstances(currentShipInstances => {
+                      arrivedShipsThisTick.forEach(instanceId => {
+                          const ship = currentShipInstances[instanceId];
+                          if (ship && typeof ship.location !== 'string') { // Check if location is not 'docked'
+                               const shipDef = availableShips.find(s => s.id === ship.typeId);
+                               if(shipDef){
+                                   toast({
+                                       title: "Ship Arrived",
+                                       description: `${shipDef.name} (${instanceId.slice(-4)}) reached Sector (${ship.location.x}, ${ship.location.y}).`,
+                                   });
+                               }
+                          }
+                      });
+                       return currentShipInstances; // Return same state
+                  });
+             }, 50); // Small delay
         }
 
 
@@ -871,7 +880,8 @@ const ControlPanel: React.FC = () => {
         // TODO: Replace with UI to select destination sector
         const destination = { x: 5, y: 5 };
 
-        const travelTimeMs = calculateTravelTime(ship.location, destination, ship.speed);
+        // Use the constant baseCoords defined outside the component
+        const travelTimeMs = calculateTravelTime(ship.location, destination, ship.speed, baseCoords);
 
         if (travelTimeMs === Infinity) {
             toast({ title: "Error", description: "Cannot calculate travel time.", variant: "destructive"});
@@ -899,9 +909,9 @@ const ControlPanel: React.FC = () => {
             return;
         }
 
-        // Destination is the colony base (using selectedColonySector for now)
-        const destination = { x: selectedColonySector.x, y: selectedColonySector.y };
-        const travelTimeMs = calculateTravelTime(ship.location, destination, ship.speed);
+        // Destination is the colony base (using baseCoords)
+        const destination = { x: baseCoords.x, y: baseCoords.y };
+        const travelTimeMs = calculateTravelTime(ship.location, destination, ship.speed, baseCoords);
 
         if (travelTimeMs === Infinity) {
             toast({ title: "Error", description: "Cannot calculate travel time.", variant: "destructive"});
@@ -1651,3 +1661,5 @@ const ControlPanel: React.FC = () => {
 };
 
 export default ControlPanel;
+
+    
