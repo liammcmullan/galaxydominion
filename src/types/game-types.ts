@@ -59,7 +59,9 @@ export interface Building {
   baseEnergyCost?: number; // Base energy cost for level 1
   baseEnergyProduction?: number; // Base energy production for level 1
   energyMultiplier?: number; // Multiplier per level for energy cost/production
-  requires?: string | string[]; // Research or other building requirement (can be single or multiple)
+  // Requirements can be research OR another building (optionally with level)
+  // Examples: 'Research: Nuclear Power', 'Trade Port', 'Ship Facility:Level 10'
+  requires?: string | string[];
   baseConstructionTime: number; // Base time to build level 1 in milliseconds
   timeMultiplier?: number; // Multiplier per level (e.g., 1.5)
   oreTarget?: OreType; // Specific ore this building targets (e.g., for refineries or storage)
@@ -128,4 +130,4 @@ export const getOreRefineryDescription = (oreType: OreType) => `Extracts ${oreTy
 export const getOreStorageDescription = (oreType: OreType) => `Increases storage capacity for ${oreType}. Upgrading increases capacity further.`;
 
 
-
+    

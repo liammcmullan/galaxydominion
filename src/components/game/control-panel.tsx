@@ -7,7 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Progress } from '@/components/ui/progress'; // Import Progress
-import { Package, Rocket, FlaskConical, Users, Sun, Atom, ShieldCheck, Target, Warehouse, Banknote, Library, HeartPulse, Ship, Factory, Mountain, Diamond, Zap, Cylinder, Move, Anchor, Briefcase } from 'lucide-react'; // Added Zap, Cylinder, Move, Anchor, Briefcase icons
+import { Package, Rocket, FlaskConical, Users, Sun, Atom, ShieldCheck, Target, Warehouse, Banknote, Library, HeartPulse, Ship, Factory, Mountain, Diamond, Zap, Cylinder, Move, Anchor, Briefcase, Orbit } from 'lucide-react'; // Added Orbit icon
 import { SidebarHeader, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarGroupContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarSeparator, SidebarTrigger } from '@/components/ui/sidebar';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from '@/lib/utils';
@@ -55,7 +55,22 @@ const availableBuildings: Building[] = [
   { id: 'medical_lab', name: 'Medical Lab', category: 'Utility', description: 'Improves worker efficiency and reduces downtime.', baseCost: { [OreTypeEnum.Iron]: 100, [OreTypeEnum.Copper]: 30 }, icon: HeartPulse, level: 1, baseEnergyCost: 8, baseConstructionTime: 12000, maxLevel: 3, costMultiplier: 1.7, timeMultiplier: 1.5 },
 
   // Shipyard
-  { id: 'ship_facility', name: 'Ship Facility', category: 'Shipyard', description: 'Builds and upgrades ships. Upgrading increases build speed and unlocks advanced ships.', baseCost: { [OreTypeEnum.Iron]: 250, [OreTypeEnum.Titanium]: 50 }, icon: Ship, level: 1, baseEnergyCost: 15, baseConstructionTime: 25000, maxLevel: 3, costMultiplier: 2.0, timeMultiplier: 1.8 },
+  { id: 'ship_facility', name: 'Ship Facility', category: 'Shipyard', description: 'Builds and upgrades ships. Upgrading increases build speed and unlocks advanced ships.', baseCost: { [OreTypeEnum.Iron]: 250, [OreTypeEnum.Titanium]: 50 }, icon: Ship, level: 1, baseEnergyCost: 15, baseConstructionTime: 25000, maxLevel: 10, costMultiplier: 2.0, timeMultiplier: 1.8 }, // Increased max level
+  // New Space Station
+  {
+    id: 'space_station',
+    name: 'Space Station',
+    category: 'Shipyard',
+    description: 'Orbital platform enhancing colony capabilities. Improves sensor range, planetary defense, and research speed.',
+    baseCost: { [OreTypeEnum.Titanium]: 5000, [OreTypeEnum.Gold]: 1000, [OreTypeEnum.Uranium]: 250 },
+    icon: Orbit,
+    level: 1, // Starts at level 1 when built
+    requires: 'Ship Facility:Level 10', // Requires Ship Facility Level 10
+    baseEnergyCost: 150, // High energy cost
+    baseConstructionTime: 300000, // Very long construction time (5 minutes)
+    maxLevel: 1, // Starts as single level, can be upgraded later if needed
+    // Add specific bonuses here later (e.g., sensorRangeBonus, defenseBonus, researchSpeedBonus)
+  },
 ];
 
 
@@ -442,17 +457,28 @@ const ControlPanel: React.FC = () => {
                completedBuildingsThisTick.push(buildingId); // Add to completions for this tick
            }
 
-           if (constructionProgress[buildingId] !== progress) {
+           if ((constructionProgress[buildingId] ?? 0) !== progress) { // Check against current state
              newBuildingProgress[buildingId] = progress;
              buildingProgressChanged = true;
            } else {
-             newBuildingProgress[buildingId] = constructionProgress[buildingId]; // Keep existing progress if no change
+             // Keep existing progress if no change - important for stability
+             newBuildingProgress[buildingId] = constructionProgress[buildingId];
            }
          }
        }
        // Update progress state if needed
        if (buildingProgressChanged) {
-          setConstructionProgress(prev => ({ ...prev, ...newBuildingProgress })); // Merge updates
+          // Use functional update to ensure we're working with the latest state
+           setConstructionProgress(prev => {
+               const mergedProgress = { ...prev, ...newBuildingProgress };
+               // Filter out any completed items that might linger due to async updates
+               completedBuildingsThisTick.forEach(id => {
+                   if (mergedProgress[id] === 100) {
+                       delete mergedProgress[id]; // Clean up completed item from progress state
+                   }
+               });
+               return mergedProgress;
+           });
        }
 
        // --- Ship Construction Progress Update ---
@@ -490,7 +516,15 @@ const ControlPanel: React.FC = () => {
 
         // Update ship construction progress state
         if (shipProgressChanged) {
-            setShipConstructionProgress(prev => ({ ...prev, ...newShipProgress }));
+             setShipConstructionProgress(prev => {
+                 const mergedProgress = { ...prev, ...newShipProgress };
+                 completedShipsThisTick.forEach(id => {
+                     if (mergedProgress[id] === 100) {
+                         delete mergedProgress[id]; // Clean up completed ships
+                     }
+                 });
+                 return mergedProgress;
+             });
         }
 
 
@@ -527,19 +561,14 @@ const ControlPanel: React.FC = () => {
                 return newConstructing;
             });
 
-            setConstructionProgress(prevProgress => {
-                const newProg = { ...prevProgress };
-                completedBuildingsThisTick.forEach(id => {
-                    delete newProg[id];
-                });
-                return newProg;
-            });
+             // Progress is cleaned up in its own state update above
+             // setConstructionProgress(prevProgress => { ... })
 
              // Update the list of IDs that completed *this tick* to trigger toast effect
              setCompletedConstructionIds(completedBuildingsThisTick);
        } else {
-           // Clear completed IDs if none finished this tick
-            if (completedConstructionIds.length === 0) { // Only clear if no toasts are pending
+           // Clear completed IDs if none finished this tick AND no toasts are pending
+            if (completedConstructionIds.length > 0) { // Only clear if toasts were previously set
                 setCompletedConstructionIds([]);
             }
        }
@@ -548,8 +577,12 @@ const ControlPanel: React.FC = () => {
         if (completedShipsThisTick.length > 0) {
             // Trigger toasts for completed ships
             completedShipsThisTick.forEach(instanceId => {
-                const ship = shipInstances[instanceId]; // Get the (now updated) ship instance
-                if (ship) {
+                // Need to access the potentially updated shipInstances state here.
+                // It might be slightly delayed due to async nature.
+                // A safer approach might involve passing ship info directly or using a ref if needed immediately.
+                // For simplicity, we rely on the next render having the updated shipInstances.
+                const ship = shipInstances[instanceId]; // This might be stale if toast shows before state update
+                if (ship) { // Check if ship data is available
                     const shipDef = availableShips.find(s => s.id === ship.typeId);
                     if(shipDef){
                         toast({
@@ -560,25 +593,22 @@ const ControlPanel: React.FC = () => {
                 }
             });
 
-            // Clean up progress state for completed ships
-            setShipConstructionProgress(prev => {
-                const newProg = { ...prev };
-                completedShipsThisTick.forEach(id => delete newProg[id]);
-                return newProg;
-            });
+            // Progress is cleaned up in its own state update above
+            // setShipConstructionProgress(prev => { ... })
         }
 
 
     }, 1000); // Run every 1000ms (1 second)
 
     return () => clearInterval(gameLoop); // Cleanup on unmount
-  }, [lastUpdateTime, resources.Energy, builtBuildings, buildingLevels, constructing, constructionProgress, storageCapacity, completedConstructionIds, shipInstances, shipConstructionProgress]); // Added ship-related states
+  }, [lastUpdateTime, resources.Energy, builtBuildings, buildingLevels, constructing, constructionProgress, storageCapacity, shipInstances, shipConstructionProgress, toast]); // Include toast in dependency array
 
 
     // --- Effect to show toasts for completed constructions ---
     useEffect(() => {
         if (completedConstructionIds.length > 0) {
             completedConstructionIds.forEach(id => {
+                 // Access potentially updated buildingLevels state here
                  const completedLevel = buildingLevels[id];
                  const buildingName = availableBuildings.find(b => b.id === id)?.name ?? id;
                  if (completedLevel !== undefined) {
@@ -589,21 +619,21 @@ const ControlPanel: React.FC = () => {
                      });
                  }
             });
-             // Reset the completed IDs after showing toasts using setTimeout to avoid render loop issue
+             // Reset the completed IDs after showing toasts. Using setTimeout helps queue this after the current render cycle.
              const timeoutId = setTimeout(() => {
                  setCompletedConstructionIds([]);
-             }, 50); // Schedule slightly later
+             }, 10); // Small delay
 
-            return () => clearTimeout(timeoutId); // Cleanup timeout if component unmounts
+            return () => clearTimeout(timeoutId); // Cleanup timeout
         }
-    }, [completedConstructionIds, buildingLevels]); // Removed toast dependency
+    }, [completedConstructionIds, buildingLevels, toast]); // Add toast dependency
 
 
   // Hook to force re-render (use sparingly)
   const [, forceUpdate] = useReducer(x => x + 1, 0);
 
   // Helper to check if building requirements are met (also used for ships)
-   const areRequirementsMet = useCallback((requires?: string | string[]): boolean => {
+  const areRequirementsMet = useCallback((requires?: string | string[]): boolean => {
     if (!requires) return true;
     const requirements = Array.isArray(requires) ? requires : [requires];
     return requirements.every(req => {
@@ -611,12 +641,20 @@ const ControlPanel: React.FC = () => {
             const researchName = req.substring(9).trim();
             const researchDef = availableResearch.find(r => r.name === researchName);
             return researchDef ? (completedResearch[researchDef.id] ?? 0) >= 1 : false; // Check if research level >= 1
-        } else {
+        } else if (req.includes(':Level')) { // Check for building:level requirement (e.g., 'Ship Facility:Level 10')
+            const [buildingName, levelStr] = req.split(':Level');
+            const requiredLevel = parseInt(levelStr, 10);
+            const requiredBuilding = availableBuildings.find(b => b.name === buildingName.trim());
+            if (!requiredBuilding || isNaN(requiredLevel)) return false;
+            const currentLevel = buildingLevels[requiredBuilding.id] ?? 0;
+            return currentLevel >= requiredLevel;
+        } else { // Standard building requirement (any level)
             const requiredBuilding = availableBuildings.find(b => b.name === req);
             return requiredBuilding ? builtBuildings.has(requiredBuilding.id) : false;
         }
     });
-   }, [builtBuildings, completedResearch]);
+   }, [builtBuildings, completedResearch, buildingLevels]);
+
 
   // --- Build/Upgrade Logic ---
   const handleBuildOrUpgrade = (building: Building) => {
@@ -642,7 +680,7 @@ const ControlPanel: React.FC = () => {
 
 
     if (!areRequirementsMet(building.requires)) {
-        toast({ title: "Requirements Not Met", description: `Cannot build or upgrade ${building.name}. Check requirements.`, variant: "destructive" });
+        toast({ title: "Requirements Not Met", description: `Cannot build or upgrade ${building.name}. Required: ${Array.isArray(building.requires) ? building.requires.join(', ') : building.requires}.`, variant: "destructive" });
         return;
     }
 
@@ -832,10 +870,9 @@ const ControlPanel: React.FC = () => {
                       const hubLevel = buildingLevels['colony_hub'] ?? 1;
                       const hubCapacity = hubDef ? calculateColonyHubInitialCapacity(hubDef, hubLevel)[ore] ?? 0 : 0;
                       const storageBuildingCapacity = storageCapacity[ore] ?? 0;
-                      const totalCapacity = hubCapacity + (storageBuildingCapacity - hubCapacity); // Avoid double counting hub base by subtracting it if storageCapacity already includes it (depends on recalculateStorageCapacity logic)
-                      // Simplified: const totalCapacity = storageCapacity[ore] ?? 0; // If recalculateStorageCapacity correctly sums hub + tanks
+                      // Simplified calculation assuming recalculateStorageCapacity correctly sums hub + tanks
+                      const capacity = storageCapacity[ore] ?? 0; // Use the state value directly
 
-                      const capacity = storageCapacity[ore] ?? 0; // Get combined capacity
                       const isFull = capacity > 0 && currentAmount >= capacity;
                       return (
                          <Tooltip key={ore}>
@@ -913,8 +950,8 @@ const ControlPanel: React.FC = () => {
                                   // - If max level reached
                                   // - If requirements not met (for initial build or upgrade)
                                   // - If not enough resources for the next level
-                                  // Allow interaction if constructing (to view tooltip)
-                                  const isDisabledForAction = isConstructing || isMaxLevel || !requirementsMet || !hasResourcesForNext;
+                                  const isDisabledForAction = isConstructing || isMaxLevel || !requirementsMet || (!isConstructing && !hasResourcesForNext); // Allow viewing tooltip even if disabled
+
 
                                   const buttonText = isConstructing
                                       ? `Building Lvl ${constructionData.targetLevel}`
@@ -943,65 +980,70 @@ const ControlPanel: React.FC = () => {
                                       <SidebarMenuItem key={buildingDef.id} className="p-0">
                                           <Tooltip>
                                               <TooltipTrigger asChild>
-                                                  <Card className={cn(
-                                                        "w-full bg-card/50 hover:bg-card/70 transition-colors relative overflow-hidden",
-                                                        isBuilt && !isConstructing && "border-primary/50 bg-primary/10",
-                                                        isConstructing && "border-accent/50 bg-accent/10 animate-pulse" // Visual cue for construction
-                                                     )}>
-                                                      {/* Progress Bar Overlay */}
-                                                      {isConstructing && (
-                                                          <Progress
-                                                              value={progress}
-                                                              className="absolute top-0 left-0 w-full h-full rounded-none opacity-30 bg-transparent [&>div]:bg-accent" // Use accent for progress
-                                                              aria-label={`Construction progress: ${Math.round(progress)}%`}
-                                                          />
-                                                      )}
-                                                      <CardContent className="p-2 flex items-center justify-between gap-2 relative z-10">
-                                                          <div className="flex items-center gap-2 flex-1 min-w-0">
-                                                              <buildingDef.icon className="w-5 h-5 text-muted-foreground flex-shrink-0" />
-                                                              <div className="flex-1 min-w-0">
-                                                                  <p className="text-sm font-medium truncate">{buildingDef.name} {currentLevel > 0 ? `(Lvl ${currentLevel})` : ''}</p>
-                                                                  <div className="text-xs text-muted-foreground truncate flex items-center flex-wrap">
-                                                                     {/* Show cost for NEXT level */}
-                                                                      {!isMaxLevel && <span className="mr-1">Cost:</span>}
-                                                                      {!isMaxLevel && formatCostWithIcons(costForNextLevel)}
-                                                                       {isMaxLevel && <span className="text-xs text-primary">Max Level</span>}
-                                                                  </div>
-                                                                  {/* Show current energy impact */}
-                                                                   {currentEnergyCost > 0 || currentEnergyProd > 0 ? (
-                                                                      <p className="text-xs text-muted-foreground truncate">
-                                                                          Energy: {currentEnergyProd > 0 ? <span className="text-[hsl(var(--chart-1))]">{`+${currentEnergyProd}`}</span> : (currentEnergyCost > 0 ? <span className="text-destructive">{`-${currentEnergyCost}`}</span> : '0')}
-                                                                      </p>
-                                                                  ) : null}
-                                                                   {/* Show current EFFECTIVE production rate */}
-                                                                   {currentEffectiveProdRate > 0 && (
-                                                                       <p className="text-xs text-muted-foreground truncate">
-                                                                           {buildingDef.oreTarget} Prod: +{currentEffectiveProdRate}/s
-                                                                       </p>
-                                                                   )}
-                                                                   {/* Show current capacity increase */}
-                                                                   {currentCapacityIncrease > 0 && !isConstructing && (
-                                                                       <p className="text-xs text-muted-foreground truncate">
-                                                                            {buildingDef.oreTarget ? `${buildingDef.oreTarget} Cap: +${currentCapacityIncrease.toLocaleString()}` : ''}
-                                                                            {buildingDef.id === 'colony_hub' && buildingDef.baseInitialCapacity && Object.keys(buildingDef.baseInitialCapacity).length > 0 && 'Base Cap: +'} {/* Hub specific */}
-                                                                       </p>
-                                                                   )}
-                                                                  {isConstructing && (
-                                                                      <p className="text-xs text-accent">Building Lvl {constructionData.targetLevel} ({Math.round(progress)}%)...</p>
-                                                                  )}
-                                                              </div>
-                                                          </div>
-                                                          <Button
-                                                              size="sm"
-                                                              onClick={() => handleBuildOrUpgrade(buildingDef)}
-                                                              disabled={isDisabledForAction} // Use disable logic for action
-                                                              className={cn(isDisabledForAction && "opacity-50 cursor-not-allowed")}
-                                                              variant={isConstructing ? "outline" : "default"} // Use outline variant when constructing
-                                                          >
-                                                              {buttonText}
-                                                          </Button>
-                                                      </CardContent>
-                                                  </Card>
+                                                  {/* Wrap Card in a div to ensure Tooltip works when button inside is disabled */}
+                                                  <div className={cn(
+                                                      isDisabledForAction && !isConstructing && "opacity-60 cursor-not-allowed" // Apply disabled style to wrapper if needed
+                                                  )}>
+                                                    <Card className={cn(
+                                                          "w-full bg-card/50 hover:bg-card/70 transition-colors relative overflow-hidden",
+                                                          isBuilt && !isConstructing && "border-primary/50 bg-primary/10",
+                                                          isConstructing && "border-accent/50 bg-accent/10 animate-pulse" // Visual cue for construction
+                                                       )}>
+                                                        {/* Progress Bar Overlay */}
+                                                        {isConstructing && (
+                                                            <Progress
+                                                                value={progress}
+                                                                className="absolute top-0 left-0 w-full h-full rounded-none opacity-30 bg-transparent [&>div]:bg-accent" // Use accent for progress
+                                                                aria-label={`Construction progress: ${Math.round(progress)}%`}
+                                                            />
+                                                        )}
+                                                        <CardContent className="p-2 flex items-center justify-between gap-2 relative z-10">
+                                                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                                <buildingDef.icon className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                                                                <div className="flex-1 min-w-0">
+                                                                    <p className="text-sm font-medium truncate">{buildingDef.name} {currentLevel > 0 ? `(Lvl ${currentLevel})` : ''}</p>
+                                                                    <div className="text-xs text-muted-foreground truncate flex items-center flex-wrap">
+                                                                       {/* Show cost for NEXT level */}
+                                                                        {!isMaxLevel && <span className="mr-1">Cost:</span>}
+                                                                        {!isMaxLevel && formatCostWithIcons(costForNextLevel)}
+                                                                         {isMaxLevel && <span className="text-xs text-primary">Max Level</span>}
+                                                                    </div>
+                                                                    {/* Show current energy impact */}
+                                                                     {currentEnergyCost > 0 || currentEnergyProd > 0 ? (
+                                                                        <p className="text-xs text-muted-foreground truncate">
+                                                                            Energy: {currentEnergyProd > 0 ? <span className="text-[hsl(var(--chart-1))]">{`+${currentEnergyProd}`}</span> : (currentEnergyCost > 0 ? <span className="text-destructive">{`-${currentEnergyCost}`}</span> : '0')}
+                                                                        </p>
+                                                                    ) : null}
+                                                                     {/* Show current EFFECTIVE production rate */}
+                                                                     {currentEffectiveProdRate > 0 && (
+                                                                         <p className="text-xs text-muted-foreground truncate">
+                                                                             {buildingDef.oreTarget} Prod: +{currentEffectiveProdRate}/s
+                                                                         </p>
+                                                                     )}
+                                                                     {/* Show current capacity increase */}
+                                                                     {currentCapacityIncrease > 0 && !isConstructing && (
+                                                                         <p className="text-xs text-muted-foreground truncate">
+                                                                              {buildingDef.oreTarget ? `${buildingDef.oreTarget} Cap: +${currentCapacityIncrease.toLocaleString()}` : ''}
+                                                                              {buildingDef.id === 'colony_hub' && buildingDef.baseInitialCapacity && Object.keys(buildingDef.baseInitialCapacity).length > 0 && 'Base Cap: +'} {/* Hub specific */}
+                                                                         </p>
+                                                                     )}
+                                                                    {isConstructing && (
+                                                                        <p className="text-xs text-accent">Building Lvl {constructionData.targetLevel} ({Math.round(progress)}%)...</p>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                            <Button
+                                                                size="sm"
+                                                                onClick={() => handleBuildOrUpgrade(buildingDef)}
+                                                                disabled={isDisabledForAction} // Use combined disable logic
+                                                                className={cn(isConstructing && "opacity-50 cursor-not-allowed")} // Additional styling if constructing
+                                                                variant={isConstructing ? "outline" : "default"} // Use outline variant when constructing
+                                                            >
+                                                                {buttonText}
+                                                            </Button>
+                                                        </CardContent>
+                                                    </Card>
+                                                  </div>
                                               </TooltipTrigger>
                                               <TooltipContent side="right" align="start" className="max-w-xs text-xs">
                                                   <p className="font-semibold text-sm">{buildingDef.name} {currentLevel > 0 ? `(Lvl ${currentLevel})` : '(Not Built)'}</p>
@@ -1052,19 +1094,23 @@ const ControlPanel: React.FC = () => {
                                                           </>
                                                       )}
                                                        {isMaxLevel && <p className="text-primary font-medium mt-1">Maximum Level Reached</p>}
-                                                      {buildingDef.requires && <p className={cn("text-amber-400 mt-1", !areRequirementsMet(buildingDef.requires) && "text-destructive/80")}>Requires: {Array.isArray(buildingDef.requires) ? buildingDef.requires.join(', ') : buildingDef.requires}</p>}
+                                                      {buildingDef.requires && (
+                                                        <p className={cn("text-amber-400 mt-1", !areRequirementsMet(buildingDef.requires) && "text-destructive/80")}>
+                                                            Requires: {Array.isArray(buildingDef.requires) ? buildingDef.requires.join(', ') : buildingDef.requires}
+                                                        </p>
+                                                        )}
                                                   </div>
                                                   {isConstructing && (
                                                       <div className="mt-2">
                                                           <p className="text-xs text-accent">Construction in progress...</p>
                                                           <Progress value={progress} className="h-1 mt-1 bg-secondary [&>div]:bg-accent" />
-                                                          {/* Optionally show remaining time */}
+                                                           <p className="text-xs text-muted-foreground">Time remaining: {formatMsToSeconds(Math.max(0, constructionData.duration - (Date.now() - constructionData.startTime)))}</p>
                                                       </div>
                                                   )}
                                                   {!isConstructing && !isMaxLevel && !hasResourcesForNext && (
                                                     <p className="text-xs text-destructive mt-2">Insufficient resources for Level {targetLevel}.</p>
                                                   )}
-                                                   {!isConstructing && !requirementsMet && currentLevel === 0 && ( // Only show requirement error if not built yet
+                                                   {!isConstructing && !requirementsMet && (currentLevel === 0 || buildingDef.requires?.includes(':Level')) && ( // Show req error if not built or level req not met
                                                      <p className="text-xs text-destructive mt-2">Requirements not met.</p>
                                                   )}
                                               </TooltipContent>
@@ -1105,6 +1151,8 @@ const ControlPanel: React.FC = () => {
                             <SidebarMenuItem key={shipDef.id}>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
+                                      {/* Wrap Card in div for tooltip */}
+                                      <div className={cn(isDisabled && "opacity-60 cursor-not-allowed")}>
                                         <Card className="w-full bg-card/50 hover:bg-card/70 transition-colors">
                                             <CardContent className="p-2 flex items-center justify-between gap-2">
                                                 <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -1123,6 +1171,7 @@ const ControlPanel: React.FC = () => {
                                                 </Button>
                                             </CardContent>
                                         </Card>
+                                      </div>
                                     </TooltipTrigger>
                                     <TooltipContent side="right" align="start" className="max-w-xs text-xs">
                                         <p className="font-semibold text-sm">{shipDef.name}</p>
@@ -1133,7 +1182,7 @@ const ControlPanel: React.FC = () => {
                                             <p>Current Build Time: {formatMsToSeconds(buildTime)} (Facility Lvl {facilityLevel})</p>
                                             {shipDef.cargoCapacity > 0 && <p>Cargo Capacity: {shipDef.cargoCapacity}</p>}
                                             {shipDef.speed && <p>Speed: {shipDef.speed} sectors/sec</p>}
-                                             <p className={cn("text-amber-400", (!hasShipFacility || !specificRequirementsMet) && "text-destructive/80")}>Requires: {requirementsText}</p>
+                                             <p className={cn("text-amber-400 mt-1", (!hasShipFacility || !specificRequirementsMet) && "text-destructive/80")}>Requires: {requirementsText}</p>
                                         </div>
                                         {!enoughResources && (
                                             <p className="text-xs text-destructive mt-2">Insufficient resources.</p>
@@ -1189,7 +1238,10 @@ const ControlPanel: React.FC = () => {
                                           <div className="flex-1 min-w-0">
                                               <p className="text-sm font-medium truncate">{ship.name}</p>
                                               {ship.status === 'constructing' ? (
+                                                <>
                                                   <p className="text-xs text-primary animate-pulse">Constructing ({Math.round(progress)}%)...</p>
+                                                  <p className="text-xs text-muted-foreground">Time remaining: {formatMsToSeconds(Math.max(0, (ship.buildDuration ?? 0) - (Date.now() - (ship.buildStartTime ?? 0))))}</p>
+                                                </>
                                               ) : (
                                                 <p className="text-xs text-muted-foreground capitalize">
                                                   Status: {ship.status}
@@ -1289,6 +1341,8 @@ const ControlPanel: React.FC = () => {
                             <SidebarMenuItem key={item.id}>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
+                                      {/* Wrap Card in div for tooltip */}
+                                      <div className={cn(isDisabled && "opacity-60 cursor-not-allowed")}>
                                          <Card className={cn(
                                                 "w-full hover:bg-card/70 transition-colors",
                                                 currentLevel > 0 && !isMaxLevel && "bg-[hsl(var(--chart-1))]/20 border-[hsl(var(--chart-1))]/50", // Partially researched style
@@ -1316,6 +1370,7 @@ const ControlPanel: React.FC = () => {
                                                 </Button>
                                             </CardContent>
                                         </Card>
+                                      </div>
                                     </TooltipTrigger>
                                     <TooltipContent side="right" align="start" className="max-w-xs text-xs">
                                         <p className="font-semibold text-sm">{item.name} {currentLevel > 0 ? `(Lvl ${currentLevel})` : '(Not Researched)'}</p>
@@ -1389,13 +1444,13 @@ const ControlPanel: React.FC = () => {
                               const oreRichness = selectedSector.oreDeposits?.[ore]?.richness ?? 'none';
 
 
-                              if (hasRefinery) { // Only show if a refinery exists for this ore
-                                return <li key={ore} className={cn((isStorageFull || oreRichness === 'none') && "text-destructive")}>
+                              if (hasRefinery || totalEffectiveRate > 0) { // Show if refinery exists OR rate > 0 (handles cases where refinery might be removed but state still shows rate briefly)
+                                return <li key={ore} className={cn((isStorageFull || oreRichness === 'none') && totalEffectiveRate > 0 && "text-destructive")}>
                                             {getOreIcon(ore, oreRichness)}{ore}: +{totalEffectiveRate.toFixed(2)}/s
                                             {oreRichness !== 'rich' && <span className="text-muted-foreground ml-1 capitalize">({oreRichness})</span>}
-                                            {resources.Energy && resources.Energy.balance < 0 && <span className="text-destructive ml-1">({Math.round((resources.Energy.production / (resources.Energy.consumption || 1))*100)}% eff.)</span>}
-                                            {isStorageFull && <span className="text-destructive ml-1">(Storage Full)</span>}
-                                            {oreRichness === 'none' && <span className="text-destructive ml-1">(No Deposit)</span>}
+                                            {resources.Energy && resources.Energy.balance < 0 && totalEffectiveRate > 0 && <span className="text-destructive ml-1">({Math.round((resources.Energy.production / (resources.Energy.consumption || 1))*100)}% eff.)</span>}
+                                            {isStorageFull && totalEffectiveRate > 0 && <span className="text-destructive ml-1">(Storage Full)</span>}
+                                            {oreRichness === 'none' && hasRefinery && <span className="text-destructive ml-1">(No Deposit)</span>}
                                        </li>;
                               }
                               return null;
@@ -1450,3 +1505,5 @@ const ControlPanel: React.FC = () => {
 };
 
 export default ControlPanel;
+
+    
