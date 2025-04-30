@@ -476,23 +476,24 @@ const ControlPanel: React.FC = () => {
              setCompletedConstructionIds(completedThisTick);
        } else {
            // Clear completed IDs if none finished this tick
-           setCompletedConstructionIds([]);
+           // Avoid resetting if there were completions previously that haven't triggered toast yet
+            if(completedConstructionIds.length > 0){
+                // Wait for the toast effect to clear it
+            } else {
+               setCompletedConstructionIds([]);
+            }
        }
 
 
     }, 1000); // Run every 1000ms (1 second)
 
     return () => clearInterval(gameLoop); // Cleanup on unmount
-  }, [lastUpdateTime, resources.Energy, builtBuildings, buildingLevels, constructing, constructionProgress, storageCapacity]); // Removed toast dependency
+  }, [lastUpdateTime, resources.Energy, builtBuildings, buildingLevels, constructing, constructionProgress, storageCapacity, completedConstructionIds]); // Added completedConstructionIds
 
     // --- Effect to show toasts for completed constructions ---
     useEffect(() => {
         if (completedConstructionIds.length > 0) {
             completedConstructionIds.forEach(id => {
-                 // Need to get the target level from the *constructing* state before it was cleared
-                 // Since the state update is async, we might need to retrieve the info from a source
-                 // that was available just before clearing. A simple approach is to use the building level state,
-                 // which should have been updated in the same batch.
                  const completedLevel = buildingLevels[id];
                  const buildingName = availableBuildings.find(b => b.id === id)?.name ?? id;
                  if (completedLevel !== undefined) {
@@ -503,10 +504,14 @@ const ControlPanel: React.FC = () => {
                      });
                  }
             });
-             // Reset the completed IDs after showing toasts to prevent re-triggering
-            setCompletedConstructionIds([]);
+             // Reset the completed IDs after showing toasts using setTimeout to avoid render loop issue
+             const timeoutId = setTimeout(() => {
+                 setCompletedConstructionIds([]);
+             }, 0); // Schedule for next tick
+
+            return () => clearTimeout(timeoutId); // Cleanup timeout if component unmounts
         }
-    }, [completedConstructionIds, toast, buildingLevels]); // Depends on the list of completed IDs and toast function
+    }, [completedConstructionIds, toast, buildingLevels]);
 
 
   // Hook to force re-render (use sparingly)
@@ -1206,3 +1211,5 @@ const ControlPanel: React.FC = () => {
 };
 
 export default ControlPanel;
+
+    
